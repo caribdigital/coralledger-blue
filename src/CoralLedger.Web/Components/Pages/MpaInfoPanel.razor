@@ -1,4 +1,5 @@
 @inject IMediator Mediator
+@inject ICoralReefWatchClient CrwClient
 
 <div class="card h-100">
     <div class="card-header bg-info text-white">
@@ -60,6 +61,80 @@
                 <dd class="col-7">@_detail.ReefCount tracked</dd>
             </dl>
 
+            @* Coral Bleaching Status Section *@
+            <hr />
+            <h6 class="mb-3"><i class="bi bi-thermometer-half text-danger"></i> Coral Bleaching Status</h6>
+
+            @if (_bleachingLoading)
+            {
+                <div class="text-center py-2">
+                    <div class="spinner-border spinner-border-sm text-warning" role="status">
+                        <span class="visually-hidden">Loading bleaching data...</span>
+                    </div>
+                    <small class="text-muted d-block mt-1">Loading NOAA data...</small>
+                </div>
+            }
+            else if (_bleachingData is not null)
+            {
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="card bg-light h-100">
+                            <div class="card-body py-2 px-3 text-center">
+                                <small class="text-muted d-block">Sea Surface Temp</small>
+                                <strong class="fs-5">@_bleachingData.SeaSurfaceTemperature.ToString("F1")°C</strong>
+                                @if (_bleachingData.SstAnomaly > 0)
+                                {
+                                    <small class="text-danger d-block">+@_bleachingData.SstAnomaly.ToString("F1")° anomaly</small>
+                                }
+                                else if (_bleachingData.SstAnomaly < 0)
+                                {
+                                    <small class="text-info d-block">@_bleachingData.SstAnomaly.ToString("F1")° anomaly</small>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card bg-light h-100">
+                            <div class="card-body py-2 px-3 text-center">
+                                <small class="text-muted d-block">Degree Heating Week</small>
+                                <strong class="fs-5 @GetDhwTextClass(_bleachingData.DegreeHeatingWeek)">
+                                    @_bleachingData.DegreeHeatingWeek.ToString("F1")
+                                </strong>
+                                <small class="text-muted d-block">°C-weeks</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>Alert Level:</span>
+                    <span class="badge @GetAlertBadgeClass(_bleachingData.AlertLevel)">
+                        @GetAlertLevelName(_bleachingData.AlertLevel)
+                    </span>
+                </div>
+
+                @if (_bleachingData.HotSpot.HasValue && _bleachingData.HotSpot.Value > 0)
+                {
+                    <div class="alert alert-warning py-2 mb-2 small">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        HotSpot detected: +@_bleachingData.HotSpot.Value.ToString("F1")°C above threshold
+                    </div>
+                }
+
+                <small class="text-muted d-block">
+                    <i class="bi bi-clock"></i> Data from @_bleachingData.Date.ToString("yyyy-MM-dd")
+                </small>
+                <small class="text-muted d-block">
+                    <i class="bi bi-geo-alt"></i> @_detail.CentroidLatitude.ToString("F2")°N, @Math.Abs(_detail.CentroidLongitude).ToString("F2")°W
+                </small>
+            }
+            else
+            {
+                <div class="alert alert-secondary py-2 small">
+                    <i class="bi bi-info-circle"></i> Bleaching data unavailable for this location
+                </div>
+            }
+
             @if (!string.IsNullOrEmpty(_detail.Description))
             {
                 <hr />
@@ -73,6 +148,13 @@
                     WDPA ID: @_detail.WdpaId
                 </p>
             }
+
+            <hr />
+            <small class="text-muted">
+                <a href="https://coralreefwatch.noaa.gov" target="_blank" class="text-decoration-none">
+                    <i class="bi bi-box-arrow-up-right"></i> NOAA Coral Reef Watch
+                </a>
+            </small>
         }
         else
         {
@@ -88,20 +170,54 @@
     private MpaDetailDto? _detail;
     private bool _loading;
     private Guid? _loadedMpaId;
+    private CrwBleachingData? _bleachingData;
+    private bool _bleachingLoading;
 
     protected override async Task OnParametersSetAsync()
     {
         if (SelectedMpaId != _loadedMpaId && SelectedMpaId.HasValue)
         {
             _loading = true;
+            _bleachingData = null;
             _detail = await Mediator.Send(new GetMpaByIdQuery(SelectedMpaId.Value));
             _loadedMpaId = SelectedMpaId;
             _loading = false;
+
+            // Load bleaching data asynchronously after MPA details
+            await LoadBleachingDataAsync();
         }
         else if (!SelectedMpaId.HasValue)
         {
             _detail = null;
             _loadedMpaId = null;
+            _bleachingData = null;
+        }
+    }
+
+    private async Task LoadBleachingDataAsync()
+    {
+        if (_detail is null) return;
+
+        try
+        {
+            _bleachingLoading = true;
+            StateHasChanged();
+
+            var yesterday = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+            _bleachingData = await CrwClient.GetBleachingDataAsync(
+                _detail.CentroidLongitude,
+                _detail.CentroidLatitude,
+                yesterday);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading bleaching data: {ex.Message}");
+            _bleachingData = null;
+        }
+        finally
+        {
+            _bleachingLoading = false;
+            StateHasChanged();
         }
     }
 
@@ -111,5 +227,32 @@
         "HighlyProtected" => "bg-warning text-dark",
         "LightlyProtected" => "bg-info",
         _ => "bg-secondary"
+    };
+
+    private string GetAlertLevelName(int level) => level switch
+    {
+        0 => "No Stress",
+        1 => "Watch",
+        2 => "Warning",
+        3 => "Alert Level 1",
+        4 => "Alert Level 2",
+        _ => $"Alert Level {level - 2}"
+    };
+
+    private string GetAlertBadgeClass(int level) => level switch
+    {
+        0 => "bg-success",
+        1 => "bg-info",
+        2 => "bg-warning text-dark",
+        >= 3 => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private string GetDhwTextClass(double dhw) => dhw switch
+    {
+        >= 8 => "text-danger",
+        >= 4 => "text-warning",
+        >= 1 => "text-info",
+        _ => "text-success"
     };
 }
