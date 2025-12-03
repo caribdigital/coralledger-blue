@@ -51,8 +51,10 @@ app.UseAntiforgery();
 app.UseBlazorFrameworkFiles();
 app.MapStaticAssets();
 
-// Map API endpoints for MPA data
+// Map API endpoints
 app.MapMpaEndpoints();
+app.MapVesselEndpoints();
+app.MapBleachingEndpoints();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

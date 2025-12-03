@@ -38,6 +38,22 @@ cd coralledger-blue
 dotnet run --project src/CoralLedger.AppHost
 ```
 
+### Configuration
+
+For vessel tracking features, obtain a free API key from [Global Fishing Watch](https://globalfishingwatch.org/our-apis/tokens).
+
+Add to `appsettings.json` or user secrets:
+```json
+{
+  "GlobalFishingWatch": {
+    "ApiToken": "your-api-token-here",
+    "Enabled": true
+  }
+}
+```
+
+NOAA Coral Reef Watch data is publicly available and requires no authentication.
+
 The Aspire dashboard will open at `https://localhost:17088` with links to:
 - **Web Application** - Blazor frontend with interactive map
 - **pgAdmin** - Database management interface
@@ -82,11 +98,31 @@ src/
 
 ## API Endpoints
 
+### Marine Protected Areas
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/mpas` | GET | All MPAs (summary) |
 | `/api/mpas/geojson` | GET | GeoJSON FeatureCollection for map |
 | `/api/mpas/{id}` | GET | Single MPA details |
+
+### Vessel Tracking (Global Fishing Watch)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/vessels/search` | GET | Search vessels by name, flag, type |
+| `/api/vessels/{vesselId}` | GET | Get vessel details |
+| `/api/vessels/fishing-events` | GET | Fishing events in a region |
+| `/api/vessels/fishing-events/bahamas` | GET | Fishing events in Bahamas |
+| `/api/vessels/encounters` | GET | Vessel encounters at sea |
+| `/api/vessels/stats` | GET | Fishing effort statistics |
+
+### Coral Bleaching (NOAA Coral Reef Watch)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/bleaching/point` | GET | Bleaching data for a location |
+| `/api/bleaching/region` | GET | Bleaching data for a region |
+| `/api/bleaching/bahamas` | GET | Current Bahamas bleaching alerts |
+| `/api/bleaching/timeseries` | GET | DHW time series for a location |
+| `/api/bleaching/mpa/{mpaId}` | GET | Bleaching data for an MPA |
 
 ## Database Schema
 
@@ -95,6 +131,24 @@ src/
 - Protection levels (NoTake, HighlyProtected, LightlyProtected)
 - Island group classification
 - WDPA (World Database on Protected Areas) integration
+
+### Vessels
+- Vessel identity (MMSI, IMO, Call Sign)
+- Global Fishing Watch integration
+- Vessel type and gear classification
+- Flag state tracking
+
+### Vessel Positions & Events
+- AIS position tracking with spatial indexing
+- Fishing events, encounters, port visits
+- MPA intersection detection
+- Distance from shore calculation
+
+### Bleaching Alerts
+- NOAA Coral Reef Watch metrics
+- Sea Surface Temperature (SST)
+- Degree Heating Week (DHW)
+- Alert levels (Watch, Warning, Alert 1-5)
 
 ### Reefs
 - Location geometry
@@ -137,11 +191,14 @@ The application comes pre-seeded with 8 Bahamas Marine Protected Areas:
 - [x] Zoom-to-MPA on selection
 - [x] Selection highlight with info popup
 
-### Phase 3: Data Ingestion
-- [ ] Global Fishing Watch API integration
-- [ ] NOAA Coral Reef Watch data
-- [ ] Vessel traffic monitoring
+### Phase 3: Data Ingestion (Current)
+- [x] Global Fishing Watch API v3 integration
+- [x] NOAA Coral Reef Watch ERDDAP integration
+- [x] Vessel tracking domain entities
+- [x] Bleaching alert domain entities
+- [x] REST API endpoints for external data
 - [ ] Automated data pipelines (Quartz.NET)
+- [ ] Vessel activity visualization on map
 
 ### Phase 4: Citizen Science
 - [ ] PWA offline support
