@@ -1,0 +1,517 @@
+@page "/bleaching"
+@inject IMediator Mediator
+@inject ICoralReefWatchClient CrwClient
+@rendermode InteractiveServer
+
+<PageTitle>Bleaching Status - CoralLedger Blue</PageTitle>
+
+<div class="bleaching-page">
+    <div class="page-header">
+        <h2><i class="bi bi-thermometer-half"></i> Coral Bleaching Status</h2>
+        <small class="text-white-50">MPA Comparison - Real-time NOAA Coral Reef Watch Data</small>
+    </div>
+
+    <div class="container-fluid py-4">
+        @* Summary Cards Row *@
+        <div class="row g-4 mb-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="card stat-card h-100 @GetHighestRiskCardClass()">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 @GetHighestRiskSubtitleClass()">Highest Risk</h6>
+                                @if (_highestDhwMpa is not null && _bleachingByMpa.TryGetValue(_highestDhwMpa.Id, out var highData))
+                                {
+                                    <h2 class="card-title mb-0">@highData.DegreeHeatingWeek.ToString("F1")</h2>
+                                    <p class="card-text mt-1 small @GetHighestRiskSubtitleClass()">@_highestDhwMpa.Name</p>
+                                }
+                                else
+                                {
+                                    <h2 class="card-title mb-0">--</h2>
+                                    <p class="card-text mt-1 small @GetHighestRiskSubtitleClass()">Loading...</p>
+                                }
+                            </div>
+                            <i class="bi bi-exclamation-triangle stat-icon"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card stat-card bg-warning text-dark h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 opacity-75">MPAs at Risk</h6>
+                                <h2 class="card-title mb-0">@_mpasAtRisk / @(_mpas?.Count ?? 0)</h2>
+                            </div>
+                            <i class="bi bi-shield-exclamation stat-icon"></i>
+                        </div>
+                        <p class="card-text mt-2 small opacity-75">DHW > 4 (Warning+)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card stat-card bg-info text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 text-white-50">Avg Sea Temp</h6>
+                                <h2 class="card-title mb-0">
+                                    @if (_avgSst.HasValue)
+                                    {
+                                        @_avgSst.Value.ToString("F1")<small>°C</small>
+                                    }
+                                    else
+                                    {
+                                        <span>--</span>
+                                    }
+                                </h2>
+                            </div>
+                            <i class="bi bi-water stat-icon"></i>
+                        </div>
+                        <p class="card-text mt-2 small text-white-50">Across all MPAs</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card stat-card bg-secondary text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 text-white-50">Data Date</h6>
+                                <h2 class="card-title mb-0">@_dataDate.ToString("MMM d")</h2>
+                            </div>
+                            <i class="bi bi-calendar3 stat-icon"></i>
+                        </div>
+                        <p class="card-text mt-2 small text-white-50">@_dataDate.ToString("yyyy")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Main Comparison Table *@
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-table text-danger"></i> MPA Bleaching Comparison</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0 small text-muted">Sort by:</label>
+                    <select class="form-select form-select-sm" style="width: auto;" @bind="_sortBy" @bind:after="SortData">
+                        <option value="dhw">DHW (Highest Risk)</option>
+                        <option value="sst">SST (Hottest)</option>
+                        <option value="alert">Alert Level</option>
+                        <option value="name">Name (A-Z)</option>
+                        <option value="area">Area (Largest)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                @if (_loading)
+                {
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading MPAs...</span>
+                        </div>
+                    </div>
+                }
+                else if (_bleachingLoading)
+                {
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-warning" role="status">
+                            <span class="visually-hidden">Loading bleaching data...</span>
+                        </div>
+                        <p class="text-muted mt-2">Fetching NOAA data for @(_mpas?.Count ?? 0) MPAs...</p>
+                    </div>
+                }
+                else if (_mpas is not null && _mpas.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 comparison-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>MPA Name</th>
+                                    <th>Island Group</th>
+                                    <th class="text-center">SST</th>
+                                    <th class="text-center">DHW</th>
+                                    <th class="text-center">Alert</th>
+                                    <th class="text-center">Anomaly</th>
+                                    <th class="text-end">Area (km²)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var mpa in _sortedMpas)
+                                {
+                                    var hasData = _bleachingByMpa.TryGetValue(mpa.Id, out var data);
+                                    <tr class="@GetRowClass(data)">
+                                        <td>
+                                            <a href="/map" class="text-decoration-none">
+                                                <strong>@mpa.Name</strong>
+                                            </a>
+                                        </td>
+                                        <td>@mpa.IslandGroup</td>
+                                        <td class="text-center">
+                                            @if (hasData)
+                                            {
+                                                <span>@data!.SeaSurfaceTemperature.ToString("F1")°C</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">--</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (hasData)
+                                            {
+                                                <strong class="@GetDhwTextClass(data!.DegreeHeatingWeek)">
+                                                    @data.DegreeHeatingWeek.ToString("F1")
+                                                </strong>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">--</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (hasData)
+                                            {
+                                                <span class="badge @GetAlertBadgeClass(data!.AlertLevel)">
+                                                    @GetAlertLevelName(data.AlertLevel)
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">N/A</span>
+                                            }
+                                        </td>
+                                        <td class="text-center">
+                                            @if (hasData)
+                                            {
+                                                @if (data!.SstAnomaly > 0)
+                                                {
+                                                    <span class="text-danger">+@data.SstAnomaly.ToString("F1")°</span>
+                                                }
+                                                else if (data.SstAnomaly < 0)
+                                                {
+                                                    <span class="text-info">@data.SstAnomaly.ToString("F1")°</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">0.0°</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">--</span>
+                                            }
+                                        </td>
+                                        <td class="text-end text-muted">@mpa.AreaSquareKm.ToString("N1")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-warning m-3">
+                        <i class="bi bi-exclamation-triangle"></i> No Marine Protected Areas found.
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* Legend and Attribution *@
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h6 class="mb-0"><i class="bi bi-info-circle text-info"></i> DHW Alert Levels</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-success">No Stress</span>
+                                <small class="text-muted">DHW &lt; 1</small>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-info">Watch</span>
+                                <small class="text-muted">DHW 1-4</small>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-warning text-dark">Warning</span>
+                                <small class="text-muted">DHW 4-8</small>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-danger">Alert</span>
+                                <small class="text-muted">DHW &gt; 8</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h6 class="mb-0"><i class="bi bi-database text-primary"></i> Data Source</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-1 small">
+                            <strong>NOAA Coral Reef Watch</strong> - Daily 5km Satellite Data
+                        </p>
+                        <p class="mb-0 small text-muted">
+                            <a href="https://coralreefwatch.noaa.gov" target="_blank" class="text-decoration-none">
+                                <i class="bi bi-box-arrow-up-right"></i> coralreefwatch.noaa.gov
+                            </a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .bleaching-page {
+        background-color: #f8f9fa;
+        min-height: 100vh;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+        color: white;
+        padding: 1.5rem;
+    }
+
+    .page-header h2 {
+        margin: 0;
+        font-size: 1.75rem;
+    }
+
+    .stat-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+    }
+
+    .stat-icon {
+        font-size: 3rem;
+        opacity: 0.3;
+    }
+
+    .card {
+        border-radius: 12px;
+        border: 1px solid rgba(0,0,0,0.08);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+
+    .card-header {
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px 12px 0 0 !important;
+    }
+
+    .comparison-table tr.row-danger {
+        background-color: rgba(220, 53, 69, 0.1);
+    }
+
+    .comparison-table tr.row-warning {
+        background-color: rgba(255, 193, 7, 0.15);
+    }
+
+    .comparison-table tr.row-info {
+        background-color: rgba(13, 202, 240, 0.1);
+    }
+</style>
+
+@code {
+    private IReadOnlyList<MpaSummaryDto>? _mpas;
+    private List<MpaSummaryDto> _sortedMpas = new();
+    private Dictionary<Guid, CrwBleachingData> _bleachingByMpa = new();
+    private bool _loading = true;
+    private bool _bleachingLoading;
+    private string _sortBy = "dhw";
+    private DateOnly _dataDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+
+    private MpaSummaryDto? _highestDhwMpa;
+    private int _mpasAtRisk;
+    private double? _avgSst;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load MPA data
+        _mpas = await Mediator.Send(new GetAllMpasQuery());
+        _sortedMpas = _mpas?.ToList() ?? new();
+        _loading = false;
+
+        // Load bleaching data for all MPAs
+        await LoadAllBleachingDataAsync();
+    }
+
+    private async Task LoadAllBleachingDataAsync()
+    {
+        if (_mpas is null || _mpas.Count == 0) return;
+
+        try
+        {
+            _bleachingLoading = true;
+            StateHasChanged();
+
+            var yesterday = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+            _dataDate = yesterday;
+
+            // Fetch bleaching data for all MPAs in parallel
+            var tasks = _mpas.Select(async mpa =>
+            {
+                try
+                {
+                    var data = await CrwClient.GetBleachingDataAsync(
+                        mpa.CentroidLongitude,
+                        mpa.CentroidLatitude,
+                        yesterday);
+                    return (MpaId: mpa.Id, Data: data);
+                }
+                catch
+                {
+                    return (MpaId: mpa.Id, Data: (CrwBleachingData?)null);
+                }
+            });
+
+            var results = await Task.WhenAll(tasks);
+            _bleachingByMpa = results
+                .Where(r => r.Data is not null)
+                .ToDictionary(r => r.MpaId, r => r.Data!);
+
+            // Calculate summary stats
+            CalculateSummaryStats();
+
+            // Sort data
+            SortData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading bleaching data: {ex.Message}");
+        }
+        finally
+        {
+            _bleachingLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CalculateSummaryStats()
+    {
+        if (_mpas is null || _bleachingByMpa.Count == 0) return;
+
+        // Find highest DHW MPA
+        var maxDhw = 0.0;
+        foreach (var mpa in _mpas)
+        {
+            if (_bleachingByMpa.TryGetValue(mpa.Id, out var data) && data.DegreeHeatingWeek > maxDhw)
+            {
+                maxDhw = data.DegreeHeatingWeek;
+                _highestDhwMpa = mpa;
+            }
+        }
+
+        // Count MPAs at risk (DHW > 4)
+        _mpasAtRisk = _bleachingByMpa.Values.Count(d => d.DegreeHeatingWeek >= 4);
+
+        // Calculate average SST
+        if (_bleachingByMpa.Count > 0)
+        {
+            _avgSst = _bleachingByMpa.Values.Average(d => d.SeaSurfaceTemperature);
+        }
+    }
+
+    private void SortData()
+    {
+        if (_mpas is null) return;
+
+        _sortedMpas = _sortBy switch
+        {
+            "dhw" => _mpas
+                .OrderByDescending(m => _bleachingByMpa.TryGetValue(m.Id, out var d) ? d.DegreeHeatingWeek : -1)
+                .ToList(),
+            "sst" => _mpas
+                .OrderByDescending(m => _bleachingByMpa.TryGetValue(m.Id, out var d) ? d.SeaSurfaceTemperature : -1)
+                .ToList(),
+            "alert" => _mpas
+                .OrderByDescending(m => _bleachingByMpa.TryGetValue(m.Id, out var d) ? d.AlertLevel : -1)
+                .ToList(),
+            "name" => _mpas.OrderBy(m => m.Name).ToList(),
+            "area" => _mpas.OrderByDescending(m => m.AreaSquareKm).ToList(),
+            _ => _mpas.ToList()
+        };
+
+        StateHasChanged();
+    }
+
+    private string GetRowClass(CrwBleachingData? data)
+    {
+        if (data is null) return "";
+
+        return data.DegreeHeatingWeek switch
+        {
+            >= 8 => "row-danger",
+            >= 4 => "row-warning",
+            >= 1 => "row-info",
+            _ => ""
+        };
+    }
+
+    private string GetHighestRiskCardClass()
+    {
+        if (_highestDhwMpa is null || !_bleachingByMpa.TryGetValue(_highestDhwMpa.Id, out var data))
+            return "bg-secondary text-white";
+
+        return data.DegreeHeatingWeek switch
+        {
+            >= 8 => "bg-danger text-white",
+            >= 4 => "bg-warning text-dark",
+            >= 1 => "bg-info text-white",
+            _ => "bg-success text-white"
+        };
+    }
+
+    private string GetHighestRiskSubtitleClass()
+    {
+        if (_highestDhwMpa is null || !_bleachingByMpa.TryGetValue(_highestDhwMpa.Id, out var data))
+            return "text-white-50";
+
+        return data.DegreeHeatingWeek switch
+        {
+            >= 4 and < 8 => "opacity-75",
+            _ => "text-white-50"
+        };
+    }
+
+    private string GetAlertLevelName(int level) => level switch
+    {
+        0 => "No Stress",
+        1 => "Watch",
+        2 => "Warning",
+        3 => "Alert 1",
+        4 => "Alert 2",
+        _ => $"Alert {level - 2}"
+    };
+
+    private string GetAlertBadgeClass(int level) => level switch
+    {
+        0 => "bg-success",
+        1 => "bg-info",
+        2 => "bg-warning text-dark",
+        >= 3 => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private string GetDhwTextClass(double dhw) => dhw switch
+    {
+        >= 8 => "text-danger",
+        >= 4 => "text-warning",
+        >= 1 => "text-info",
+        _ => "text-success"
+    };
+}
