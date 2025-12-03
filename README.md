@@ -284,4 +284,4 @@ If CoralLedger Blue helps you or inspires you, consider giving it a ⭐ — it h
 
 **Created by Robbie McKenzie - Founder, [DigitalCarib.com](https://digitalcarib.com)**
 
-**Built with love for the Bahamas Blue Economy** 🇧🇸
+**Built with love for the Bahamian Blue Economy** 🇧🇸
