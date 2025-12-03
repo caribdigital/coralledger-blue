@@ -33,6 +33,15 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromMinutes(5);
         });
 
+        // Register Protected Planet WDPA client
+        services.Configure<ProtectedPlanetOptions>(
+            configuration.GetSection(ProtectedPlanetOptions.SectionName));
+
+        services.AddHttpClient<IProtectedPlanetClient, ProtectedPlanetClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
+
         return services;
     }
 

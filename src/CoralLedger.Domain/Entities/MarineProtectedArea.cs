@@ -10,8 +10,11 @@ public class MarineProtectedArea : BaseEntity, IAggregateRoot, IAuditableEntity
     public string? LocalName { get; private set; }
     public string? WdpaId { get; private set; }  // World Database on Protected Areas ID
     public Geometry Boundary { get; private set; } = null!;  // Polygon/MultiPolygon
+    public Geometry? BoundarySimplifiedMedium { get; private set; }  // ~0.001° tolerance (~100m)
+    public Geometry? BoundarySimplifiedLow { get; private set; }     // ~0.01° tolerance (~1km)
     public Point Centroid { get; private set; } = null!;
     public double AreaSquareKm { get; private set; }
+    public DateTime? WdpaLastSync { get; private set; }
     public MpaStatus Status { get; private set; }
     public ProtectionLevel ProtectionLevel { get; private set; }
     public IslandGroup IslandGroup { get; private set; }
@@ -74,6 +77,39 @@ public class MarineProtectedArea : BaseEntity, IAggregateRoot, IAuditableEntity
     public void Decommission()
     {
         Status = MpaStatus.Decommissioned;
+        ModifiedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Update the MPA boundary with authoritative data from WDPA
+    /// </summary>
+    public void UpdateBoundaryFromWdpa(Geometry boundary)
+    {
+        Boundary = boundary;
+        Centroid = boundary.Centroid as Point ?? Centroid;
+        AreaSquareKm = CalculateAreaSquareKm(boundary);
+        WdpaLastSync = DateTime.UtcNow;
+        ModifiedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Set pre-computed simplified geometry versions for map performance
+    /// </summary>
+    /// <param name="medium">Simplified with ~0.001° tolerance (~100m at 25°N)</param>
+    /// <param name="low">Simplified with ~0.01° tolerance (~1km at 25°N)</param>
+    public void SetSimplifiedBoundaries(Geometry? medium, Geometry? low)
+    {
+        BoundarySimplifiedMedium = medium;
+        BoundarySimplifiedLow = low;
+        ModifiedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Update the WDPA ID for this MPA
+    /// </summary>
+    public void SetWdpaId(string wdpaId)
+    {
+        WdpaId = wdpaId;
         ModifiedAt = DateTime.UtcNow;
     }
 

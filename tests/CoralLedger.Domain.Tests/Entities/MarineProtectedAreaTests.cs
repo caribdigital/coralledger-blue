@@ -235,4 +235,116 @@ public class MarineProtectedAreaTests
         // Assert
         mpa1.Id.Should().NotBe(mpa2.Id);
     }
+
+    [Fact]
+    public void UpdateBoundaryFromWdpa_UpdatesBoundaryAndRelatedFields()
+    {
+        // Arrange
+        var originalBoundary = CreateTestPolygon(centerLat: 24.0, centerLon: -77.0, size: 0.1);
+        var mpa = MarineProtectedArea.Create(
+            "Test MPA",
+            originalBoundary,
+            ProtectionLevel.NoTake,
+            IslandGroup.Exumas);
+
+        var newBoundary = CreateTestPolygon(centerLat: 25.0, centerLon: -78.0, size: 0.2);
+
+        // Act
+        mpa.UpdateBoundaryFromWdpa(newBoundary);
+
+        // Assert
+        mpa.Boundary.Should().Be(newBoundary);
+        mpa.Centroid.X.Should().BeApproximately(-78.0, 0.01);
+        mpa.Centroid.Y.Should().BeApproximately(25.0, 0.01);
+        mpa.WdpaLastSync.Should().NotBeNull();
+        mpa.WdpaLastSync.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+        mpa.ModifiedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void UpdateBoundaryFromWdpa_RecalculatesArea()
+    {
+        // Arrange
+        var smallBoundary = CreateTestPolygon(size: 0.05);
+        var mpa = MarineProtectedArea.Create(
+            "Test MPA",
+            smallBoundary,
+            ProtectionLevel.NoTake,
+            IslandGroup.Exumas);
+        var originalArea = mpa.AreaSquareKm;
+
+        var largerBoundary = CreateTestPolygon(size: 0.2);
+
+        // Act
+        mpa.UpdateBoundaryFromWdpa(largerBoundary);
+
+        // Assert
+        mpa.AreaSquareKm.Should().BeGreaterThan(originalArea);
+    }
+
+    [Fact]
+    public void SetSimplifiedBoundaries_SetsSimplifiedGeometries()
+    {
+        // Arrange
+        var boundary = CreateTestPolygon();
+        var mpa = MarineProtectedArea.Create(
+            "Test MPA",
+            boundary,
+            ProtectionLevel.NoTake,
+            IslandGroup.Exumas);
+
+        var mediumSimplified = CreateTestPolygon(size: 0.08);
+        var lowSimplified = CreateTestPolygon(size: 0.05);
+
+        // Act
+        mpa.SetSimplifiedBoundaries(mediumSimplified, lowSimplified);
+
+        // Assert
+        mpa.BoundarySimplifiedMedium.Should().Be(mediumSimplified);
+        mpa.BoundarySimplifiedLow.Should().Be(lowSimplified);
+        mpa.ModifiedAt.Should().NotBeNull();
+        mpa.ModifiedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void SetSimplifiedBoundaries_AllowsNullValues()
+    {
+        // Arrange
+        var boundary = CreateTestPolygon();
+        var mpa = MarineProtectedArea.Create(
+            "Test MPA",
+            boundary,
+            ProtectionLevel.NoTake,
+            IslandGroup.Exumas);
+
+        // Act
+        mpa.SetSimplifiedBoundaries(null, null);
+
+        // Assert
+        mpa.BoundarySimplifiedMedium.Should().BeNull();
+        mpa.BoundarySimplifiedLow.Should().BeNull();
+        mpa.ModifiedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void SetWdpaId_SetsWdpaId()
+    {
+        // Arrange
+        var boundary = CreateTestPolygon();
+        var mpa = MarineProtectedArea.Create(
+            "Test MPA",
+            boundary,
+            ProtectionLevel.NoTake,
+            IslandGroup.Exumas);
+
+        var wdpaId = "305071";
+
+        // Act
+        mpa.SetWdpaId(wdpaId);
+
+        // Assert
+        mpa.WdpaId.Should().Be(wdpaId);
+        mpa.ModifiedAt.Should().NotBeNull();
+        mpa.ModifiedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
+    }
 }

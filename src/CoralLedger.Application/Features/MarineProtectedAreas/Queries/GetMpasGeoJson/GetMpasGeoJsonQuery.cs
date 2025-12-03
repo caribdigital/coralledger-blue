@@ -1,4 +1,5 @@
 using CoralLedger.Application.Common.Interfaces;
+using CoralLedger.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.IO;
@@ -7,7 +8,11 @@ using System.Text.Json.Nodes;
 
 namespace CoralLedger.Application.Features.MarineProtectedAreas.Queries.GetMpasGeoJson;
 
-public record GetMpasGeoJsonQuery : IRequest<MpaGeoJsonCollection>;
+/// <summary>
+/// Query to get all MPAs as GeoJSON FeatureCollection with configurable geometry resolution
+/// </summary>
+/// <param name="Resolution">Geometry resolution level (default: Medium for map performance)</param>
+public record GetMpasGeoJsonQuery(GeometryResolution Resolution = GeometryResolution.Medium) : IRequest<MpaGeoJsonCollection>;
 
 public class MpaGeoJsonCollection
 {
@@ -56,7 +61,15 @@ public class GetMpasGeoJsonQueryHandler : IRequestHandler<GetMpasGeoJsonQuery, M
 
         foreach (var mpa in mpas)
         {
-            var geometryJson = geoJsonWriter.Write(mpa.Boundary);
+            // Select appropriate geometry based on requested resolution
+            var geometry = request.Resolution switch
+            {
+                GeometryResolution.Full => mpa.Boundary,
+                GeometryResolution.Low => mpa.BoundarySimplifiedLow ?? mpa.Boundary,
+                _ => mpa.BoundarySimplifiedMedium ?? mpa.Boundary // Medium is default
+            };
+
+            var geometryJson = geoJsonWriter.Write(geometry);
             var geometryNode = JsonNode.Parse(geometryJson);
 
             features.Add(new MpaGeoJsonFeature

@@ -27,12 +27,20 @@ public class MarineProtectedAreaConfiguration : IEntityTypeConfiguration<MarineP
             .HasColumnType("geometry(Geometry, 4326)")
             .IsRequired();
 
+        builder.Property(e => e.BoundarySimplifiedMedium)
+            .HasColumnType("geometry(Geometry, 4326)");
+
+        builder.Property(e => e.BoundarySimplifiedLow)
+            .HasColumnType("geometry(Geometry, 4326)");
+
         builder.Property(e => e.Centroid)
             .HasColumnType("geometry(Point, 4326)")
             .IsRequired();
 
         builder.Property(e => e.AreaSquareKm)
             .HasPrecision(18, 6);
+
+        builder.Property(e => e.WdpaLastSync);
 
         builder.Property(e => e.Status)
             .HasConversion<string>()

@@ -1,6 +1,8 @@
+using CoralLedger.Application.Features.MarineProtectedAreas.Commands.SyncFromWdpa;
 using CoralLedger.Application.Features.MarineProtectedAreas.Queries.GetAllMpas;
 using CoralLedger.Application.Features.MarineProtectedAreas.Queries.GetMpaById;
 using CoralLedger.Application.Features.MarineProtectedAreas.Queries.GetMpasGeoJson;
+using CoralLedger.Domain.Enums;
 using MediatR;
 
 namespace CoralLedger.Web.Endpoints;
@@ -23,13 +25,19 @@ public static class MpaEndpoints
         .Produces<IReadOnlyList<CoralLedger.Application.Features.MarineProtectedAreas.DTOs.MpaSummaryDto>>();
 
         // GET /api/mpas/geojson - Get all MPAs as GeoJSON FeatureCollection
-        group.MapGet("/geojson", async (IMediator mediator, CancellationToken ct) =>
+        // ?resolution=full|medium|low (default: medium)
+        group.MapGet("/geojson", async (
+            string? resolution,
+            IMediator mediator,
+            CancellationToken ct) =>
         {
-            var geoJson = await mediator.Send(new GetMpasGeoJsonQuery(), ct);
+            var res = ParseResolution(resolution);
+            var geoJson = await mediator.Send(new GetMpasGeoJsonQuery(res), ct);
             return Results.Ok(geoJson);
         })
         .WithName("GetMpasGeoJson")
-        .WithDescription("Get all Marine Protected Areas as GeoJSON FeatureCollection for map display")
+        .WithDescription("Get all Marine Protected Areas as GeoJSON FeatureCollection for map display. " +
+            "Use ?resolution=full|medium|low to control geometry simplification (default: medium)")
         .Produces<MpaGeoJsonCollection>();
 
         // GET /api/mpas/{id} - Get specific MPA by ID
@@ -43,6 +51,27 @@ public static class MpaEndpoints
         .Produces<CoralLedger.Application.Features.MarineProtectedAreas.DTOs.MpaDetailDto>()
         .Produces(StatusCodes.Status404NotFound);
 
+        // POST /api/mpas/{id}/sync-wdpa - Sync MPA boundary from WDPA
+        group.MapPost("/{id:guid}/sync-wdpa", async (Guid id, IMediator mediator, CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new SyncMpaFromWdpaCommand(id), ct);
+            return result.Success
+                ? Results.Ok(result)
+                : Results.BadRequest(result);
+        })
+        .WithName("SyncMpaFromWdpa")
+        .WithDescription("Sync MPA boundary geometry from Protected Planet WDPA API")
+        .Produces<SyncResult>()
+        .Produces<SyncResult>(StatusCodes.Status400BadRequest);
+
         return endpoints;
     }
+
+    private static GeometryResolution ParseResolution(string? resolution) =>
+        resolution?.ToLowerInvariant() switch
+        {
+            "full" => GeometryResolution.Full,
+            "low" => GeometryResolution.Low,
+            _ => GeometryResolution.Medium // Default
+        };
 }
