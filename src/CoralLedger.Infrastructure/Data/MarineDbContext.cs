@@ -12,6 +12,10 @@ public class MarineDbContext : DbContext, IMarineDbContext
 
     public DbSet<MarineProtectedArea> MarineProtectedAreas => Set<MarineProtectedArea>();
     public DbSet<Reef> Reefs => Set<Reef>();
+    public DbSet<Vessel> Vessels => Set<Vessel>();
+    public DbSet<VesselPosition> VesselPositions => Set<VesselPosition>();
+    public DbSet<VesselEvent> VesselEvents => Set<VesselEvent>();
+    public DbSet<BleachingAlert> BleachingAlerts => Set<BleachingAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

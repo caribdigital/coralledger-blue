@@ -18,8 +18,8 @@ builder.Services.AddRazorComponents()
 // Add Application layer (MediatR, FluentValidation)
 builder.Services.AddApplication();
 
-// Add Infrastructure layer services
-builder.Services.AddInfrastructure();
+// Add Infrastructure layer services (including external API clients)
+builder.Services.AddInfrastructure(builder.Configuration);
 
 // Add Database with PostGIS support
 builder.AddMarineDatabase("marinedb");

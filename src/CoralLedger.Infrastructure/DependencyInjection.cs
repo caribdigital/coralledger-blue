@@ -1,7 +1,9 @@
 using CoralLedger.Application.Common.Interfaces;
 using CoralLedger.Infrastructure.Data;
+using CoralLedger.Infrastructure.ExternalServices;
 using CoralLedger.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -9,9 +11,24 @@ namespace CoralLedger.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IDateTimeService, DateTimeService>();
+
+        // Register Global Fishing Watch client
+        services.Configure<GlobalFishingWatchOptions>(
+            configuration.GetSection(GlobalFishingWatchOptions.SectionName));
+
+        services.AddHttpClient<IGlobalFishingWatchClient, GlobalFishingWatchClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
+
+        // Register NOAA Coral Reef Watch client
+        services.AddHttpClient<ICoralReefWatchClient, CoralReefWatchClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(5);
+        });
 
         return services;
     }
