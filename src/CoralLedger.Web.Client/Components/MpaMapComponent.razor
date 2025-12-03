@@ -1,6 +1,7 @@
 @using System.Text.Json
 @using NetTopologySuite.Geometries
 @using NetTopologySuite.IO
+@using Mapsui.Extensions
 @inject HttpClient Http
 
 <div class="mpa-map-container" style="height: 100%; width: 100%; position: relative;">
@@ -34,6 +35,15 @@
                 <span class="legend-color" style="background-color: #6c757d;"></span>
                 <span>Minimal Protection</span>
             </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_selectedMpaName))
+    {
+        <div class="map-info-popup">
+            <strong>@_selectedMpaName</strong>
+            <br />
+            <small>Click for details</small>
         </div>
     }
 </div>
@@ -88,6 +98,25 @@
         margin-right: 8px;
         border: 1px solid rgba(0,0,0,0.2);
     }
+
+    .map-info-popup {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: white;
+        padding: 10px 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        z-index: 999;
+        text-align: center;
+        animation: fadeIn 0.3s ease;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
 </style>
 
 @code {
@@ -104,7 +133,11 @@
     private Map _map = new();
     private bool _loading = true;
     private bool _showLegend = true;
+    private string _selectedMpaName = "";
     private Dictionary<string, MpaGeoJsonFeature> _mpaFeatures = new();
+    private Dictionary<string, MRect> _mpaBounds = new();
+    private MemoryLayer? _mpaLayer;
+    private MemoryLayer? _selectionLayer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -112,6 +145,16 @@
         InitializeMap();
         await LoadMpaDataAsync();
         _loading = false;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // When SelectedMpaId changes from parent, zoom to that MPA
+        if (SelectedMpaId.HasValue && _mpaBounds.ContainsKey(SelectedMpaId.Value.ToString()))
+        {
+            ZoomToMpa(SelectedMpaId.Value.ToString());
+            UpdateSelectionHighlight(SelectedMpaId.Value.ToString());
+        }
     }
 
     private void InitializeMap()
@@ -128,6 +171,102 @@
 
         // Configure navigator
         _map.Navigator.RotationLock = true;
+
+        // Subscribe to map info events for click handling
+        _map.Info += OnMapInfo;
+    }
+
+    private void OnMapInfo(object? sender, MapInfoEventArgs e)
+    {
+        // In Mapsui v5, use GetMapInfo() with specific layers to query
+        if (_mpaLayer == null) return;
+
+        var mapInfo = e.GetMapInfo(new[] { _mpaLayer });
+        if (mapInfo?.Feature != null)
+        {
+            var feature = mapInfo.Feature;
+            if (feature["mpaId"] is string mpaIdStr && Guid.TryParse(mpaIdStr, out var mpaId))
+            {
+                _selectedMpaName = feature["name"]?.ToString() ?? "";
+
+                // Zoom to the selected MPA
+                ZoomToMpa(mpaIdStr);
+
+                // Update selection highlight
+                UpdateSelectionHighlight(mpaIdStr);
+
+                // Notify parent component
+                OnMpaSelected.InvokeAsync(mpaId);
+
+                StateHasChanged();
+            }
+        }
+        else
+        {
+            // Clicked on empty area - clear selection
+            _selectedMpaName = "";
+            ClearSelectionHighlight();
+            StateHasChanged();
+        }
+    }
+
+    private void ZoomToMpa(string mpaId)
+    {
+        if (_mpaBounds.TryGetValue(mpaId, out var bounds))
+        {
+            // Add some padding around the MPA
+            var paddedBounds = bounds.Grow(bounds.Width * 0.2, bounds.Height * 0.2);
+            _map.Navigator.ZoomToBox(paddedBounds);
+        }
+    }
+
+    private void UpdateSelectionHighlight(string mpaId)
+    {
+        if (_selectionLayer != null)
+        {
+            _map.Layers.Remove(_selectionLayer);
+        }
+
+        if (_mpaFeatures.TryGetValue(mpaId, out var geoFeature))
+        {
+            try
+            {
+                var geometry = ParseGeoJsonGeometry(geoFeature.Geometry);
+                if (geometry != null)
+                {
+                    var transformedGeometry = TransformGeometry(geometry);
+                    var feature = transformedGeometry.ToFeature();
+
+                    // Apply highlight style
+                    feature.Styles.Add(new VectorStyle
+                    {
+                        Fill = new Brush(Color.FromArgb(64, 255, 255, 0)), // Yellow highlight
+                        Outline = new Pen(Color.FromArgb(255, 255, 193, 7), 4), // Thick yellow border
+                        Line = new Pen(Color.FromArgb(255, 255, 193, 7), 4)
+                    });
+
+                    _selectionLayer = new MemoryLayer
+                    {
+                        Name = "Selection",
+                        Features = new List<IFeature> { feature }
+                    };
+                    _map.Layers.Add(_selectionLayer);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error creating selection highlight: {ex.Message}");
+            }
+        }
+    }
+
+    private void ClearSelectionHighlight()
+    {
+        if (_selectionLayer != null)
+        {
+            _map.Layers.Remove(_selectionLayer);
+            _selectionLayer = null;
+        }
     }
 
     private async Task LoadMpaDataAsync()
@@ -138,10 +277,10 @@
 
             if (mpas?.Features != null)
             {
-                var mpaLayer = CreateMpaLayer(mpas.Features);
-                _map.Layers.Add(mpaLayer);
+                _mpaLayer = CreateMpaLayer(mpas.Features);
+                _map.Layers.Add(_mpaLayer);
 
-                // Store features for click handling
+                // Store features for click handling and bounds calculation
                 foreach (var feature in mpas.Features)
                 {
                     _mpaFeatures[feature.Id] = feature;
@@ -169,6 +308,13 @@
                 // Transform from WGS84 to SphericalMercator
                 var transformedGeometry = TransformGeometry(geometry);
 
+                // Calculate bounds for zoom-to functionality
+                var envelope = transformedGeometry.EnvelopeInternal;
+                _mpaBounds[geoFeature.Id] = new MRect(
+                    envelope.MinX, envelope.MinY,
+                    envelope.MaxX, envelope.MaxY
+                );
+
                 // Create Mapsui feature from geometry
                 var feature = transformedGeometry.ToFeature();
                 feature["mpaId"] = geoFeature.Id;
@@ -190,6 +336,7 @@
         {
             Name = "Marine Protected Areas",
             Features = mpaFeatures
+            // In Mapsui v5, layer querying is done via GetMapInfo() with specific layers
         };
     }
 
@@ -260,6 +407,11 @@
             Outline = new Pen(strokeColor, 2),
             Line = new Pen(strokeColor, 2)
         };
+    }
+
+    public void Dispose()
+    {
+        _map.Info -= OnMapInfo;
     }
 
     // GeoJSON DTOs for deserialization
