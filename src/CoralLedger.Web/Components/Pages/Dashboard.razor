@@ -1,0 +1,387 @@
+@page "/dashboard"
+@page "/"
+@inject IMediator Mediator
+@inject ICoralReefWatchClient CrwClient
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard - CoralLedger Blue</PageTitle>
+
+<div class="dashboard-page">
+    <div class="dashboard-header">
+        <h2><i class="bi bi-speedometer2"></i> Marine Intelligence Dashboard</h2>
+        <small class="text-white-50">Real-time monitoring for The Bahamas</small>
+    </div>
+
+    <div class="container-fluid py-4">
+        @* Summary Cards Row *@
+        <div class="row g-4 mb-4">
+            <div class="col-md-6 col-lg-3">
+                <div class="card stat-card bg-primary text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 text-white-50">Protected Areas</h6>
+                                <h2 class="card-title mb-0">@(_mpaCount)</h2>
+                            </div>
+                            <i class="bi bi-shield-check stat-icon"></i>
+                        </div>
+                        <p class="card-text mt-2 small text-white-50">Marine Protected Areas in The Bahamas</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card stat-card bg-success text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 text-white-50">Total Protected Area</h6>
+                                <h2 class="card-title mb-0">@(_totalArea.ToString("N0"))</h2>
+                            </div>
+                            <i class="bi bi-geo-alt-fill stat-icon"></i>
+                        </div>
+                        <p class="card-text mt-2 small text-white-50">Square kilometers protected</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card stat-card h-100 @GetBleachingCardClass()">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 @GetBleachingSubtitleClass()">Bleaching Alert</h6>
+                                <h2 class="card-title mb-0">@GetBleachingAlertText()</h2>
+                            </div>
+                            <i class="bi bi-thermometer-high stat-icon"></i>
+                        </div>
+                        <p class="card-text mt-2 small @GetBleachingSubtitleClass()">
+                            @if (_maxDhw.HasValue)
+                            {
+                                <span>Max DHW: @_maxDhw.Value.ToString("F1") °C-weeks</span>
+                            }
+                            else
+                            {
+                                <span>Loading heat stress data...</span>
+                            }
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="card stat-card bg-info text-white h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 text-white-50">Sea Temp (Avg)</h6>
+                                <h2 class="card-title mb-0">
+                                    @if (_avgSst.HasValue)
+                                    {
+                                        @_avgSst.Value.ToString("F1")<small>°C</small>
+                                    }
+                                    else
+                                    {
+                                        <span>--</span>
+                                    }
+                                </h2>
+                            </div>
+                            <i class="bi bi-water stat-icon"></i>
+                        </div>
+                        <p class="card-text mt-2 small text-white-50">NOAA Coral Reef Watch</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Main Content Row *@
+        <div class="row g-4">
+            @* MPA Summary Table *@
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-table text-primary"></i> Marine Protected Areas</h5>
+                        <a href="/map" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-map"></i> View Map
+                        </a>
+                    </div>
+                    <div class="card-body p-0">
+                        @if (_loading)
+                        {
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        }
+                        else if (_mpas is not null)
+                        {
+                            <div class="table-responsive" style="max-height: 400px;">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Island Group</th>
+                                            <th>Protection</th>
+                                            <th class="text-end">Area (km²)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var mpa in _mpas.OrderByDescending(m => m.AreaSquareKm))
+                                        {
+                                            <tr>
+                                                <td><strong>@mpa.Name</strong></td>
+                                                <td>@mpa.IslandGroup</td>
+                                                <td>
+                                                    <span class="badge @GetProtectionBadgeClass(mpa.ProtectionLevel)">
+                                                        @GetProtectionLabel(mpa.ProtectionLevel)
+                                                    </span>
+                                                </td>
+                                                <td class="text-end">@mpa.AreaSquareKm.ToString("N1")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @* Quick Stats / Data Sources *@
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="bi bi-pie-chart-fill text-success"></i> Protection Levels</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_mpas is not null)
+                        {
+                            @foreach (var group in _mpas.GroupBy(m => m.ProtectionLevel).OrderBy(g => g.Key))
+                            {
+                                var count = group.Count();
+                                var percentage = (count * 100.0 / _mpas.Count);
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>@GetProtectionLabel(group.Key)</span>
+                                        <span class="text-muted">@count MPAs</span>
+                                    </div>
+                                    <div class="progress" style="height: 8px;">
+                                        <div class="progress-bar @GetProgressBarClass(group.Key)"
+                                             role="progressbar"
+                                             style="width: @percentage%"
+                                             aria-valuenow="@percentage"
+                                             aria-valuemin="0"
+                                             aria-valuemax="100">
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="bi bi-database text-info"></i> Data Sources</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <div>
+                                    <strong>NOAA Coral Reef Watch</strong>
+                                    <br /><small class="text-muted">Bleaching heat stress</small>
+                                </div>
+                                <span class="badge bg-success">Live</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <div>
+                                    <strong>Global Fishing Watch</strong>
+                                    <br /><small class="text-muted">Vessel tracking</small>
+                                </div>
+                                <span class="badge bg-secondary">API Ready</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                <div>
+                                    <strong>Protected Planet / WDPA</strong>
+                                    <br /><small class="text-muted">MPA boundaries</small>
+                                </div>
+                                <span class="badge bg-success">Seeded</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Attribution Footer *@
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="text-center text-muted small">
+                    <p class="mb-1">
+                        Data provided by <a href="https://coralreefwatch.noaa.gov" target="_blank">NOAA Coral Reef Watch</a>,
+                        <a href="https://globalfishingwatch.org" target="_blank">Global Fishing Watch</a>,
+                        and <a href="https://www.protectedplanet.net" target="_blank">Protected Planet</a>
+                    </p>
+                    <p class="mb-0">
+                        Built with love for the Bahamas Blue Economy | <a href="https://digitalcarib.com" target="_blank">DigitalCarib.com</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .dashboard-page {
+        background-color: #f8f9fa;
+        min-height: 100vh;
+    }
+
+    .dashboard-header {
+        background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%);
+        color: white;
+        padding: 1.5rem;
+    }
+
+    .dashboard-header h2 {
+        margin: 0;
+        font-size: 1.75rem;
+    }
+
+    .stat-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-4px);
+    }
+
+    .stat-icon {
+        font-size: 3rem;
+        opacity: 0.3;
+    }
+
+    .card {
+        border-radius: 12px;
+        border: 1px solid rgba(0,0,0,0.08);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+
+    .card-header {
+        border-bottom: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px 12px 0 0 !important;
+    }
+</style>
+
+@code {
+    private IReadOnlyList<MpaSummaryDto>? _mpas;
+    private bool _loading = true;
+    private int _mpaCount = 0;
+    private double _totalArea = 0;
+    private double? _maxDhw;
+    private double? _avgSst;
+    private int? _maxAlertLevel;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load MPA data
+        _mpas = await Mediator.Send(new GetAllMpasQuery());
+        _mpaCount = _mpas?.Count ?? 0;
+        _totalArea = _mpas?.Sum(m => m.AreaSquareKm) ?? 0;
+        _loading = false;
+
+        // Load bleaching data asynchronously
+        await LoadBleachingDataAsync();
+    }
+
+    private async Task LoadBleachingDataAsync()
+    {
+        try
+        {
+            // Get yesterday's data (more likely to be available)
+            var yesterday = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+
+            // Get data for a central Bahamas point (Exumas)
+            var bleachingData = await CrwClient.GetBleachingDataAsync(-76.5, 24.2, yesterday);
+
+            if (bleachingData is not null)
+            {
+                _maxDhw = bleachingData.DegreeHeatingWeek;
+                _avgSst = bleachingData.SeaSurfaceTemperature;
+                _maxAlertLevel = bleachingData.AlertLevel;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't crash the dashboard
+            Console.WriteLine($"Error loading bleaching data: {ex.Message}");
+        }
+    }
+
+    private string GetBleachingAlertText()
+    {
+        if (!_maxAlertLevel.HasValue) return "Loading...";
+
+        return _maxAlertLevel.Value switch
+        {
+            0 => "No Stress",
+            1 => "Watch",
+            2 => "Warning",
+            3 => "Alert 1",
+            4 => "Alert 2",
+            >= 5 => "Alert " + (_maxAlertLevel.Value - 2),
+            _ => "Unknown"
+        };
+    }
+
+    private string GetBleachingCardClass()
+    {
+        if (!_maxAlertLevel.HasValue) return "bg-secondary text-white";
+
+        return _maxAlertLevel.Value switch
+        {
+            0 => "bg-success text-white",
+            1 => "bg-warning text-dark",
+            2 => "bg-warning text-dark",
+            >= 3 => "bg-danger text-white",
+            _ => "bg-secondary text-white"
+        };
+    }
+
+    private string GetBleachingSubtitleClass()
+    {
+        if (!_maxAlertLevel.HasValue) return "text-white-50";
+
+        return _maxAlertLevel.Value switch
+        {
+            1 or 2 => "text-dark opacity-75",
+            _ => "text-white-50"
+        };
+    }
+
+    private string GetProtectionBadgeClass(string level) => level switch
+    {
+        "NoTake" => "bg-danger",
+        "HighlyProtected" => "bg-warning text-dark",
+        "LightlyProtected" => "bg-info",
+        _ => "bg-secondary"
+    };
+
+    private string GetProgressBarClass(string level) => level switch
+    {
+        "NoTake" => "bg-danger",
+        "HighlyProtected" => "bg-warning",
+        "LightlyProtected" => "bg-info",
+        _ => "bg-secondary"
+    };
+
+    private string GetProtectionLabel(string level) => level switch
+    {
+        "NoTake" => "No-Take Zone",
+        "HighlyProtected" => "Highly Protected",
+        "LightlyProtected" => "Lightly Protected",
+        _ => level
+    };
+}
