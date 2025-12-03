@@ -6,7 +6,7 @@
 [![Blazor](https://img.shields.io/badge/Blazor-Server%20%2B%20WASM-512BD4)](https://blazor.net/)
 [![PostGIS](https://img.shields.io/badge/PostGIS-3.4-336791)](https://postgis.net/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![GitHub](https://img.shields.io/github/stars/caribdigital/coralledger-blue?style=social)](https://github.com/caribdigital/coralledger-blue)
+[![GitHub](https://img.shields.io/github/stars/caribdigital/coralledgerblue?style=social)](https://github.com/caribdigital/coralledgerblue)
 
 CoralLedger Blue is an open-source marine intelligence platform designed to support marine conservation efforts in The Bahamas. Built with cutting-edge .NET 10 technology, it provides tools for monitoring Marine Protected Areas (MPAs), tracking reef health, and enabling citizen science contributions.
 
@@ -31,8 +31,8 @@ CoralLedger Blue is an open-source marine intelligence platform designed to supp
 
 ```bash
 # Clone the repository
-git clone https://github.com/caribdigital/coralledger-blue.git
-cd coralledger-blue
+git clone https://github.com/caribdigital/coralledgerblue.git
+cd coralledgerblue
 
 # Run with .NET Aspire (starts PostgreSQL/PostGIS automatically)
 dotnet run --project src/CoralLedger.AppHost
