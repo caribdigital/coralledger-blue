@@ -16,6 +16,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<IDateTimeService, DateTimeService>();
+        services.AddSingleton<ISpatialValidationService, SpatialValidationService>();
 
         // Register Global Fishing Watch client
         services.Configure<GlobalFishingWatchOptions>(
