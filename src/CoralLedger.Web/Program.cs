@@ -60,6 +60,7 @@ app.MapVesselEndpoints();
 app.MapBleachingEndpoints();
 app.MapJobEndpoints();
 app.MapObservationEndpoints();
+app.MapAIEndpoints();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

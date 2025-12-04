@@ -43,6 +43,9 @@
     <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.13.1" />
     <!-- Azure Storage -->
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.22.2" />
+    <!-- AI / Semantic Kernel -->
+    <PackageVersion Include="Microsoft.SemanticKernel" Version="1.31.0" />
+    <PackageVersion Include="Microsoft.SemanticKernel.Connectors.OpenAI" Version="1.31.0" />
     <!-- Testing -->
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.0" />

@@ -1,0 +1,420 @@
+@inject HttpClient Http
+
+<div class="ai-query-container">
+    <div class="ai-header">
+        <i class="bi bi-robot"></i>
+        <h5 class="mb-0">Marine AI Assistant</h5>
+        @if (_aiConfigured.HasValue)
+        {
+            <span class="status-badge @(_aiConfigured.Value ? "online" : "offline")">
+                @(_aiConfigured.Value ? "Online" : "Not Configured")
+            </span>
+        }
+    </div>
+
+    <div class="chat-container">
+        @if (_messages.Count == 0 && _suggestions.Count > 0)
+        {
+            <div class="suggestions-panel">
+                <p class="text-muted small mb-2">Try asking:</p>
+                <div class="suggestion-chips">
+                    @foreach (var suggestion in _suggestions.Take(6))
+                    {
+                        <button class="suggestion-chip" @onclick="() => AskQuestion(suggestion)">
+                            @suggestion
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="messages-area" @ref="_messagesContainer">
+            @foreach (var message in _messages)
+            {
+                <div class="message @(message.IsUser ? "user" : "assistant")">
+                    <div class="message-icon">
+                        <i class="bi @(message.IsUser ? "bi-person-fill" : "bi-robot")"></i>
+                    </div>
+                    <div class="message-content">
+                        @if (message.IsLoading)
+                        {
+                            <div class="typing-indicator">
+                                <span></span><span></span><span></span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="message-text">@((MarkupString)FormatMessage(message.Text))</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="input-area">
+        <input type="text"
+               class="form-control"
+               placeholder="Ask about MPAs, bleaching, fishing activity..."
+               @bind="_query"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               disabled="@(_isLoading || !(_aiConfigured ?? false))" />
+        <button class="btn btn-primary send-btn"
+                @onclick="SubmitQuery"
+                disabled="@(_isLoading || string.IsNullOrWhiteSpace(_query) || !(_aiConfigured ?? false))">
+            @if (_isLoading)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            else
+            {
+                <i class="bi bi-send-fill"></i>
+            }
+        </button>
+    </div>
+
+    @if (!(_aiConfigured ?? true))
+    {
+        <div class="config-notice">
+            <i class="bi bi-info-circle me-1"></i>
+            Set <code>MarineAI:ApiKey</code> in configuration to enable AI features.
+        </div>
+    }
+</div>
+
+<style>
+    .ai-query-container {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        height: 500px;
+        overflow: hidden;
+    }
+
+    .ai-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px;
+        border-bottom: 1px solid #e9ecef;
+        background: linear-gradient(135deg, #0a1628 0%, #1a3a5c 100%);
+        color: white;
+    }
+
+    .ai-header i {
+        font-size: 24px;
+        color: #00bcd4;
+    }
+
+    .status-badge {
+        margin-left: auto;
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 12px;
+    }
+
+    .status-badge.online {
+        background: rgba(40, 167, 69, 0.2);
+        color: #28a745;
+    }
+
+    .status-badge.offline {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+
+    .chat-container {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .suggestions-panel {
+        padding: 16px;
+        background: #f8f9fa;
+    }
+
+    .suggestion-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .suggestion-chip {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 16px;
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .suggestion-chip:hover {
+        background: #e3f2fd;
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+
+    .messages-area {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+    }
+
+    .message {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .message.user {
+        flex-direction: row-reverse;
+    }
+
+    .message-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .message.user .message-icon {
+        background: #0d6efd;
+        color: white;
+    }
+
+    .message.assistant .message-icon {
+        background: #00bcd4;
+        color: white;
+    }
+
+    .message-content {
+        max-width: 80%;
+    }
+
+    .message.user .message-content {
+        text-align: right;
+    }
+
+    .message-text {
+        background: #f8f9fa;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-size: 14px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+
+    .message.user .message-text {
+        background: #0d6efd;
+        color: white;
+    }
+
+    .typing-indicator {
+        display: flex;
+        gap: 4px;
+        padding: 12px 16px;
+        background: #f8f9fa;
+        border-radius: 12px;
+    }
+
+    .typing-indicator span {
+        width: 8px;
+        height: 8px;
+        background: #6c757d;
+        border-radius: 50%;
+        animation: typing 1.4s infinite ease-in-out;
+    }
+
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @@keyframes typing {
+        0%, 60%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-6px); }
+    }
+
+    .input-area {
+        display: flex;
+        gap: 8px;
+        padding: 16px;
+        border-top: 1px solid #e9ecef;
+        background: #f8f9fa;
+    }
+
+    .input-area .form-control {
+        border-radius: 20px;
+        padding-left: 16px;
+    }
+
+    .send-btn {
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .config-notice {
+        padding: 8px 16px;
+        background: #fff3cd;
+        color: #856404;
+        font-size: 12px;
+        text-align: center;
+    }
+
+    .config-notice code {
+        background: rgba(0, 0, 0, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+</style>
+
+@code {
+    private string _query = "";
+    private bool _isLoading = false;
+    private bool? _aiConfigured = null;
+    private List<ChatMessage> _messages = new();
+    private List<string> _suggestions = new();
+    private ElementReference _messagesContainer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckAIStatus();
+        if (_aiConfigured == true)
+        {
+            await LoadSuggestions();
+        }
+    }
+
+    private async Task CheckAIStatus()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<AIStatusResponse>("/api/ai/status");
+            _aiConfigured = response?.Configured ?? false;
+        }
+        catch
+        {
+            _aiConfigured = false;
+        }
+    }
+
+    private async Task LoadSuggestions()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<AISuggestionsResponse>("/api/ai/suggestions");
+            _suggestions = response?.Suggestions?.ToList() ?? new();
+        }
+        catch
+        {
+            _suggestions = new();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_query) && !_isLoading)
+        {
+            await SubmitQuery();
+        }
+    }
+
+    private async Task AskQuestion(string question)
+    {
+        _query = question;
+        await SubmitQuery();
+    }
+
+    private async Task SubmitQuery()
+    {
+        if (string.IsNullOrWhiteSpace(_query) || _isLoading) return;
+
+        var userQuery = _query;
+        _query = "";
+        _isLoading = true;
+
+        // Add user message
+        _messages.Add(new ChatMessage { IsUser = true, Text = userQuery });
+
+        // Add loading message
+        var loadingMessage = new ChatMessage { IsUser = false, IsLoading = true };
+        _messages.Add(loadingMessage);
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/api/ai/query", new { query = userQuery });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<AIQueryResponse>();
+                loadingMessage.IsLoading = false;
+                loadingMessage.Text = result?.Answer ?? "No response received.";
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                loadingMessage.IsLoading = false;
+                loadingMessage.Text = $"Error: {error}";
+            }
+        }
+        catch (Exception ex)
+        {
+            loadingMessage.IsLoading = false;
+            loadingMessage.Text = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string FormatMessage(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+
+        // Convert newlines to <br> for HTML display
+        return text
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;")
+            .Replace("\n", "<br>");
+    }
+
+    private class ChatMessage
+    {
+        public bool IsUser { get; set; }
+        public string Text { get; set; } = "";
+        public bool IsLoading { get; set; }
+    }
+
+    private class AIStatusResponse
+    {
+        public bool Configured { get; set; }
+        public string? Message { get; set; }
+    }
+
+    private class AISuggestionsResponse
+    {
+        public string[]? Suggestions { get; set; }
+    }
+
+    private class AIQueryResponse
+    {
+        public string? Query { get; set; }
+        public string? Answer { get; set; }
+    }
+}

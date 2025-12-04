@@ -1,4 +1,5 @@
 using CoralLedger.Application.Common.Interfaces;
+using CoralLedger.Infrastructure.AI;
 using CoralLedger.Infrastructure.Data;
 using CoralLedger.Infrastructure.ExternalServices;
 using CoralLedger.Infrastructure.Jobs;
@@ -46,6 +47,11 @@ public static class DependencyInjection
         services.Configure<BlobStorageOptions>(
             configuration.GetSection(BlobStorageOptions.SectionName));
         services.AddSingleton<IBlobStorageService, BlobStorageService>();
+
+        // Register Marine AI service (Semantic Kernel)
+        services.Configure<MarineAIOptions>(
+            configuration.GetSection(MarineAIOptions.SectionName));
+        services.AddScoped<IMarineAIService, MarineAIService>();
 
         return services;
     }
