@@ -6,6 +6,7 @@ using CoralLedger.Infrastructure.Data.Seeding;
 using CoralLedger.Web.Components;
 using CoralLedger.Web.Endpoints;
 using CoralLedger.Web.Hubs;
+using CoralLedger.Web.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +30,13 @@ builder.Services.AddQuartzJobs();
 // Add SignalR for real-time notifications
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IAlertHubContext, AlertHubContext>();
+
+// Add Security: Rate limiting and CORS
+builder.Services.AddSecurityRateLimiting();
+builder.Services.AddSecurityCors(builder.Configuration);
+
+// Add Performance: Response compression and caching
+builder.Services.AddPerformanceCompression();
 
 // Add Database with PostGIS support (skip in testing environment - tests configure their own)
 if (!builder.Environment.IsEnvironment("Testing"))
@@ -56,6 +64,15 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
 }
+
+// Security middleware
+app.UseSecurityHeaders();
+app.UseCors();
+app.UseRateLimiter();
+
+// Performance middleware (order matters)
+app.UseResponseCompression();
+app.UseResponseCaching();
 
 app.UseHttpsRedirection();
 app.UseAntiforgery();

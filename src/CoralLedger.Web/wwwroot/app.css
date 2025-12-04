@@ -1,3 +1,6 @@
+/* CoralLedger Blue - Main Styles */
+@import url('css/mobile.css');
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }

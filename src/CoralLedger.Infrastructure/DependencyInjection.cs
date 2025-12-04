@@ -69,6 +69,10 @@ public static class DependencyInjection
         // Register Data Export service
         services.AddScoped<IDataExportService, DataExportService>();
 
+        // Register Cache service
+        services.AddMemoryCache();
+        services.AddSingleton<ICacheService, MemoryCacheService>();
+
         return services;
     }
 
