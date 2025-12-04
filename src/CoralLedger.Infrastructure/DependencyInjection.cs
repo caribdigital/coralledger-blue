@@ -86,12 +86,27 @@ public static class DependencyInjection
     /// </summary>
     public static IServiceCollection AddInfrastructureHealthChecks(this IServiceCollection services)
     {
+        // Add HTTP client for health checks that need to make HTTP requests
+        services.AddHttpClient("HealthChecks", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback =
+                HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        });
+
         services.AddHealthChecks()
+            // Infrastructure health checks
             .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready", "db" })
             .AddCheck<NoaaHealthCheck>("noaa-api", tags: new[] { "ready", "external" })
             .AddCheck<GfwHealthCheck>("gfw-api", tags: new[] { "ready", "external" })
             .AddCheck<BlobStorageHealthCheck>("blob-storage", tags: new[] { "ready", "storage" })
-            .AddCheck<QuartzHealthCheck>("quartz-scheduler", tags: new[] { "ready", "jobs" });
+            .AddCheck<QuartzHealthCheck>("quartz-scheduler", tags: new[] { "ready", "jobs" })
+            // Frontend and connectivity health checks
+            .AddCheck<BlazorHealthCheck>("blazor", tags: new[] { "ready", "frontend" })
+            .AddCheck<SignalRHealthCheck>("signalr", tags: new[] { "ready", "realtime" })
+            .AddCheck<CacheHealthCheck>("cache", tags: new[] { "ready", "performance" });
 
         return services;
     }

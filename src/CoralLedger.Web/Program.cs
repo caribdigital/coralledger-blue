@@ -113,23 +113,36 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-// Security middleware
-app.UseSecurityHeaders();
-app.UseCors();
-app.UseRateLimiter();
+// ============================================================
+// MIDDLEWARE ORDER IS CRITICAL - Follow this sequence exactly
+// ============================================================
 
-// Performance middleware (order matters)
+// 1. Core performance and security headers that don't depend on routing/endpoints
 app.UseResponseCompression();
 app.UseResponseCaching();
-
 app.UseHttpsRedirection();
+app.UseSecurityHeaders();
+
+// 2. Static files - UseStaticFiles for wwwroot, UseBlazorFrameworkFiles for WASM
+app.UseStaticFiles();
+app.UseBlazorFrameworkFiles();
+
+// 3. Routing begins here - explicitly add UseRouting()
+app.UseRouting();
+
+// 4. Middleware that needs to know about the selected endpoint
+//    These MUST be after UseRouting() and before endpoint execution
+app.UseCors();
+app.UseRateLimiter();
 app.UseAntiforgery();
 
-// Serve WebAssembly files
-app.UseBlazorFrameworkFiles();
-app.MapStaticAssets();
+// 5. Map Razor Components (handles Blazor routes)
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode()
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(CoralLedger.Web.Client._Imports).Assembly);
 
-// Map API endpoints
+// 7. Map API endpoints
 app.MapMpaEndpoints();
 app.MapVesselEndpoints();
 app.MapBleachingEndpoints();
@@ -141,15 +154,12 @@ app.MapAisEndpoints();
 app.MapExportEndpoints();
 app.MapAdminEndpoints();
 app.MapSpeciesEndpoints();
+app.MapDiagnosticsEndpoints();
 
-// Map SignalR hub
+// 8. Map SignalR hub
 app.MapHub<AlertHub>("/hubs/alerts");
 
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
-    .AddInteractiveWebAssemblyRenderMode()
-    .AddAdditionalAssemblies(typeof(CoralLedger.Web.Client._Imports).Assembly);
-
+// 9. Map default endpoints (health checks, etc.) - should be last
 app.MapDefaultEndpoints();
 
 app.Run();

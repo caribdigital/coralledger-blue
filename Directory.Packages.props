@@ -57,5 +57,16 @@
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <!-- Aspire Testing -->
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="9.1.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
+    <!-- Playwright E2E -->
+    <PackageVersion Include="Microsoft.Playwright.NUnit" Version="1.48.0" />
+    <PackageVersion Include="NUnit" Version="4.2.2" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="4.6.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0" />
   </ItemGroup>
 </Project>

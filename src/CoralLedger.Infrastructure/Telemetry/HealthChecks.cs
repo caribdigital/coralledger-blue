@@ -1,5 +1,6 @@
 using CoralLedger.Application.Common.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 
@@ -206,5 +207,183 @@ public class QuartzHealthCheck : IHealthCheck
             _logger.LogError(ex, "Quartz health check error");
             return HealthCheckResult.Unhealthy("Quartz health check failed", ex);
         }
+    }
+}
+
+/// <summary>
+/// Health check for Blazor WebAssembly framework loading
+/// Verifies that _framework/blazor.web.js is accessible
+/// </summary>
+public class BlazorHealthCheck : IHealthCheck
+{
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<BlazorHealthCheck> _logger;
+
+    public BlazorHealthCheck(
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        ILogger<BlazorHealthCheck> logger)
+    {
+        _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
+        _logger = logger;
+    }
+
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient("HealthChecks");
+
+            // Get the application URL - default to localhost:7232 for local dev
+            var baseUrl = _configuration["ASPNETCORE_URLS"]?.Split(';')
+                .FirstOrDefault(u => u.StartsWith("https://"))
+                ?? "https://localhost:7232";
+
+            var response = await client.GetAsync(
+                $"{baseUrl}/_framework/blazor.web.js",
+                cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return HealthCheckResult.Healthy("Blazor WebAssembly framework is available");
+            }
+
+            return HealthCheckResult.Degraded(
+                $"Blazor framework returned {response.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Blazor health check failed");
+            return HealthCheckResult.Degraded("Unable to verify Blazor framework", ex);
+        }
+    }
+}
+
+/// <summary>
+/// Health check for SignalR hub connectivity
+/// Verifies the SignalR negotiate endpoint is accessible
+/// </summary>
+public class SignalRHealthCheck : IHealthCheck
+{
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<SignalRHealthCheck> _logger;
+
+    public SignalRHealthCheck(
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
+        ILogger<SignalRHealthCheck> logger)
+    {
+        _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
+        _logger = logger;
+    }
+
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient("HealthChecks");
+
+            // Get the application URL - default to localhost:7232 for local dev
+            var baseUrl = _configuration["ASPNETCORE_URLS"]?.Split(';')
+                .FirstOrDefault(u => u.StartsWith("https://"))
+                ?? "https://localhost:7232";
+
+            // Try to hit the SignalR negotiate endpoint
+            var response = await client.PostAsync(
+                $"{baseUrl}/hubs/alerts/negotiate?negotiateVersion=1",
+                null,
+                cancellationToken);
+
+            // SignalR negotiate returns 200 even without proper handshake setup
+            // A 404 or other error would indicate the hub isn't configured
+            if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                // BadRequest is acceptable - means SignalR is configured but negotiate needs proper setup
+                return HealthCheckResult.Healthy("SignalR AlertHub is configured and accessible");
+            }
+
+            return HealthCheckResult.Degraded(
+                $"SignalR hub returned {response.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "SignalR health check failed");
+            return HealthCheckResult.Degraded("Unable to verify SignalR hub", ex);
+        }
+    }
+}
+
+/// <summary>
+/// Health check for MemoryCache service
+/// Tests read/write operations to verify cache is working
+/// </summary>
+public class CacheHealthCheck : IHealthCheck
+{
+    private readonly ICacheService _cacheService;
+    private readonly ILogger<CacheHealthCheck> _logger;
+    private const string HealthCheckKey = "health:cache:test";
+
+    public CacheHealthCheck(
+        ICacheService cacheService,
+        ILogger<CacheHealthCheck> logger)
+    {
+        _cacheService = cacheService;
+        _logger = logger;
+    }
+
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var testValue = new CacheTestValue { Timestamp = DateTime.UtcNow, TestId = Guid.NewGuid() };
+
+            // Test write
+            await _cacheService.SetAsync(
+                HealthCheckKey,
+                testValue,
+                TimeSpan.FromSeconds(30),
+                cancellationToken);
+
+            // Test read
+            var retrieved = await _cacheService.GetAsync<CacheTestValue>(
+                HealthCheckKey,
+                cancellationToken);
+
+            if (retrieved == null)
+            {
+                return HealthCheckResult.Degraded("Cache read returned null after write");
+            }
+
+            if (retrieved.TestId != testValue.TestId)
+            {
+                return HealthCheckResult.Degraded("Cache returned incorrect value");
+            }
+
+            // Clean up
+            await _cacheService.RemoveAsync(HealthCheckKey, cancellationToken);
+
+            return HealthCheckResult.Healthy("Cache is working correctly");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Cache health check failed");
+            return HealthCheckResult.Unhealthy("Cache health check failed", ex);
+        }
+    }
+
+    private class CacheTestValue
+    {
+        public DateTime Timestamp { get; set; }
+        public Guid TestId { get; set; }
     }
 }
