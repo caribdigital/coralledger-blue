@@ -1,0 +1,192 @@
+using System.Text;
+using CoralLedger.Application.Common.Interfaces;
+
+namespace CoralLedger.Web.Endpoints;
+
+public static class ExportEndpoints
+{
+    public static IEndpointRouteBuilder MapExportEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        var group = endpoints.MapGroup("/api/export")
+            .WithTags("Data Export");
+
+        // GET /api/export/mpas/geojson - Export MPAs as GeoJSON
+        group.MapGet("/mpas/geojson", async (
+            IDataExportService exportService,
+            string? islandGroup = null,
+            string? protectionLevel = null,
+            int? limit = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions
+            {
+                IslandGroup = islandGroup,
+                ProtectionLevel = protectionLevel,
+                Limit = limit
+            };
+
+            var geoJson = await exportService.ExportMpasAsGeoJsonAsync(options, ct);
+
+            return Results.Text(geoJson, "application/geo+json", Encoding.UTF8);
+        })
+        .WithName("ExportMpasGeoJson")
+        .Produces<string>(contentType: "application/geo+json");
+
+        // GET /api/export/mpas/shapefile - Export MPAs as Shapefile (zip)
+        group.MapGet("/mpas/shapefile", async (
+            IDataExportService exportService,
+            string? islandGroup = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions { IslandGroup = islandGroup };
+            var zipBytes = await exportService.ExportMpasAsShapefileAsync(options, ct);
+
+            return Results.File(zipBytes, "application/zip", "mpas.zip");
+        })
+        .WithName("ExportMpasShapefile")
+        .Produces<byte[]>(contentType: "application/zip");
+
+        // GET /api/export/mpas/csv - Export MPAs as CSV
+        group.MapGet("/mpas/csv", async (
+            IDataExportService exportService,
+            string? islandGroup = null,
+            int? limit = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions { IslandGroup = islandGroup, Limit = limit };
+            var csv = await exportService.ExportAsCsvAsync(ExportDataType.MarineProtectedAreas, options, ct);
+
+            return Results.Text(csv, "text/csv", Encoding.UTF8);
+        })
+        .WithName("ExportMpasCsv")
+        .Produces<string>(contentType: "text/csv");
+
+        // GET /api/export/vessels/geojson - Export vessel events as GeoJSON
+        group.MapGet("/vessels/geojson", async (
+            IDataExportService exportService,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int? limit = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions
+            {
+                FromDate = fromDate,
+                ToDate = toDate,
+                Limit = limit ?? 1000
+            };
+
+            var geoJson = await exportService.ExportVesselEventsAsGeoJsonAsync(options, ct);
+            return Results.Text(geoJson, "application/geo+json", Encoding.UTF8);
+        })
+        .WithName("ExportVesselsGeoJson")
+        .Produces<string>(contentType: "application/geo+json");
+
+        // GET /api/export/vessels/csv - Export vessel events as CSV
+        group.MapGet("/vessels/csv", async (
+            IDataExportService exportService,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int? limit = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions
+            {
+                FromDate = fromDate,
+                ToDate = toDate,
+                Limit = limit ?? 1000
+            };
+
+            var csv = await exportService.ExportAsCsvAsync(ExportDataType.VesselEvents, options, ct);
+            return Results.Text(csv, "text/csv", Encoding.UTF8);
+        })
+        .WithName("ExportVesselsCsv")
+        .Produces<string>(contentType: "text/csv");
+
+        // GET /api/export/bleaching/geojson - Export bleaching alerts as GeoJSON
+        group.MapGet("/bleaching/geojson", async (
+            IDataExportService exportService,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int? limit = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions
+            {
+                FromDate = fromDate ?? DateTime.UtcNow.AddDays(-30),
+                ToDate = toDate,
+                Limit = limit ?? 500
+            };
+
+            var geoJson = await exportService.ExportBleachingAlertsAsGeoJsonAsync(options, ct);
+            return Results.Text(geoJson, "application/geo+json", Encoding.UTF8);
+        })
+        .WithName("ExportBleachingGeoJson")
+        .Produces<string>(contentType: "application/geo+json");
+
+        // GET /api/export/bleaching/csv - Export bleaching alerts as CSV
+        group.MapGet("/bleaching/csv", async (
+            IDataExportService exportService,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int? limit = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions
+            {
+                FromDate = fromDate ?? DateTime.UtcNow.AddDays(-30),
+                ToDate = toDate,
+                Limit = limit ?? 500
+            };
+
+            var csv = await exportService.ExportAsCsvAsync(ExportDataType.BleachingAlerts, options, ct);
+            return Results.Text(csv, "text/csv", Encoding.UTF8);
+        })
+        .WithName("ExportBleachingCsv")
+        .Produces<string>(contentType: "text/csv");
+
+        // GET /api/export/observations/geojson - Export citizen observations as GeoJSON
+        group.MapGet("/observations/geojson", async (
+            IDataExportService exportService,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int? limit = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions
+            {
+                FromDate = fromDate,
+                ToDate = toDate,
+                Limit = limit ?? 500
+            };
+
+            var geoJson = await exportService.ExportObservationsAsGeoJsonAsync(options, ct);
+            return Results.Text(geoJson, "application/geo+json", Encoding.UTF8);
+        })
+        .WithName("ExportObservationsGeoJson")
+        .Produces<string>(contentType: "application/geo+json");
+
+        // GET /api/export/observations/csv - Export citizen observations as CSV
+        group.MapGet("/observations/csv", async (
+            IDataExportService exportService,
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            int? limit = null,
+            CancellationToken ct = default) =>
+        {
+            var options = new ExportOptions
+            {
+                FromDate = fromDate,
+                ToDate = toDate,
+                Limit = limit ?? 500
+            };
+
+            var csv = await exportService.ExportAsCsvAsync(ExportDataType.CitizenObservations, options, ct);
+            return Results.Text(csv, "text/csv", Encoding.UTF8);
+        })
+        .WithName("ExportObservationsCsv")
+        .Produces<string>(contentType: "text/csv");
+
+        return endpoints;
+    }
+}

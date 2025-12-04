@@ -66,6 +66,9 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
+        // Register Data Export service
+        services.AddScoped<IDataExportService, DataExportService>();
+
         return services;
     }
 

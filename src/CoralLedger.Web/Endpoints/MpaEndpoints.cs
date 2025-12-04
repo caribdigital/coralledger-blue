@@ -1,9 +1,11 @@
+using CoralLedger.Application.Common.Interfaces;
 using CoralLedger.Application.Features.MarineProtectedAreas.Commands.SyncFromWdpa;
 using CoralLedger.Application.Features.MarineProtectedAreas.Queries.GetAllMpas;
 using CoralLedger.Application.Features.MarineProtectedAreas.Queries.GetMpaById;
 using CoralLedger.Application.Features.MarineProtectedAreas.Queries.GetMpasGeoJson;
 using CoralLedger.Domain.Enums;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CoralLedger.Web.Endpoints;
 
@@ -63,6 +65,34 @@ public static class MpaEndpoints
         .WithDescription("Sync MPA boundary geometry from Protected Planet WDPA API")
         .Produces<SyncResult>()
         .Produces<SyncResult>(StatusCodes.Status400BadRequest);
+
+        // GET /api/mpas/stats - Get MPA statistics
+        group.MapGet("/stats", async (IMarineDbContext context, CancellationToken ct) =>
+        {
+            var totalCount = await context.MarineProtectedAreas.CountAsync(ct);
+            var totalArea = await context.MarineProtectedAreas.SumAsync(m => m.AreaSquareKm, ct);
+
+            var byIslandGroup = await context.MarineProtectedAreas
+                .GroupBy(m => m.IslandGroup)
+                .Select(g => new { islandGroup = g.Key.ToString(), count = g.Count(), areaKm2 = g.Sum(m => m.AreaSquareKm) })
+                .ToListAsync(ct);
+
+            var byProtectionLevel = await context.MarineProtectedAreas
+                .GroupBy(m => m.ProtectionLevel)
+                .Select(g => new { level = g.Key.ToString(), count = g.Count() })
+                .ToListAsync(ct);
+
+            return Results.Ok(new
+            {
+                totalCount,
+                totalAreaKm2 = totalArea,
+                byIslandGroup,
+                byProtectionLevel
+            });
+        })
+        .WithName("GetMpaStats")
+        .WithDescription("Get aggregate statistics about Marine Protected Areas")
+        .Produces<object>();
 
         return endpoints;
     }

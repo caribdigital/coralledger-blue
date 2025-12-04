@@ -1,0 +1,568 @@
+@inject HttpClient Http
+@implements IAsyncDisposable
+
+<div class="admin-dashboard">
+    <div class="admin-header">
+        <h4><i class="bi bi-gear-fill"></i> Administration Dashboard</h4>
+        <button class="btn btn-sm btn-outline-light" @onclick="RefreshData" disabled="@_isLoading">
+            <i class="bi @(_isLoading ? "bi-arrow-repeat spin" : "bi-arrow-clockwise")"></i>
+            Refresh
+        </button>
+    </div>
+
+    <div class="admin-content">
+        <!-- Stats Cards -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon mpa"><i class="bi bi-shield-check"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.Mpas</div>
+                    <div class="stat-label">Marine Protected Areas</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon reef"><i class="bi bi-water"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.Reefs</div>
+                    <div class="stat-label">Monitored Reefs</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon vessel"><i class="bi bi-cursor-fill"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.Vessels</div>
+                    <div class="stat-label">Tracked Vessels</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon observation"><i class="bi bi-eye-fill"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.Observations</div>
+                    <div class="stat-label">Citizen Observations</div>
+                </div>
+            </div>
+            <div class="stat-card alert">
+                <div class="stat-icon alert"><i class="bi bi-bell-fill"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.ActiveAlerts</div>
+                    <div class="stat-label">Active Alerts</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="activity-section">
+            <h5>Recent Activity (7 days)</h5>
+            <div class="activity-cards">
+                <div class="activity-card">
+                    <span class="activity-value">@_recent.BleachingAlerts</span>
+                    <span class="activity-label">Bleaching Alerts</span>
+                </div>
+                <div class="activity-card">
+                    <span class="activity-value">@_recent.VesselEvents</span>
+                    <span class="activity-label">Vessel Events</span>
+                </div>
+                <div class="activity-card pending">
+                    <span class="activity-value">@_recent.PendingObservations</span>
+                    <span class="activity-label">Pending Moderation</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Observations -->
+        @if (_pendingObservations.Count > 0)
+        {
+            <div class="moderation-section">
+                <h5><i class="bi bi-hourglass-split"></i> Pending Observations</h5>
+                <div class="observation-list">
+                    @foreach (var obs in _pendingObservations)
+                    {
+                        <div class="observation-card">
+                            <div class="observation-header">
+                                <span class="observation-type">@obs.Type</span>
+                                <span class="observation-severity severity-@obs.Severity">Severity @obs.Severity</span>
+                            </div>
+                            <h6>@obs.Title</h6>
+                            <p class="observation-desc">@(TruncateText(obs.Description, 150))</p>
+                            <div class="observation-meta">
+                                <span><i class="bi bi-person"></i> @(obs.CitizenName ?? "Anonymous")</span>
+                                <span><i class="bi bi-clock"></i> @FormatDate(obs.ObservationTime)</span>
+                                @if (obs.PhotoCount > 0)
+                                {
+                                    <span><i class="bi bi-camera"></i> @obs.PhotoCount photos</span>
+                                }
+                            </div>
+                            <div class="observation-actions">
+                                <button class="btn btn-sm btn-success" @onclick="() => ApproveObservation(obs.Id)">
+                                    <i class="bi bi-check-lg"></i> Approve
+                                </button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ShowRejectModal(obs.Id)">
+                                    <i class="bi bi-x-lg"></i> Reject
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- System Status -->
+        <div class="system-section">
+            <h5><i class="bi bi-cpu"></i> System Status</h5>
+            <div class="system-grid">
+                <div class="system-item @(_health.Database == "Connected" ? "healthy" : "unhealthy")">
+                    <i class="bi bi-database"></i>
+                    <span>Database</span>
+                    <span class="status">@_health.Database</span>
+                </div>
+                <div class="system-item @(_config.AiEnabled ? "healthy" : "disabled")">
+                    <i class="bi bi-robot"></i>
+                    <span>AI Service</span>
+                    <span class="status">@(_config.AiEnabled ? "Active" : "Not Configured")</span>
+                </div>
+                <div class="system-item @(_config.AisEnabled ? "healthy" : "disabled")">
+                    <i class="bi bi-broadcast"></i>
+                    <span>AIS Tracking</span>
+                    <span class="status">@(_config.AisEnabled ? "Active" : "Demo Mode")</span>
+                </div>
+                <div class="system-item @(_config.BlobStorageConfigured ? "healthy" : "disabled")">
+                    <i class="bi bi-cloud-upload"></i>
+                    <span>Photo Storage</span>
+                    <span class="status">@(_config.BlobStorageConfigured ? "Connected" : "Not Configured")</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Actions -->
+        <div class="export-section">
+            <h5><i class="bi bi-download"></i> Data Export</h5>
+            <div class="export-buttons">
+                <a href="/api/export/mpas/geojson" class="btn btn-outline-primary" download="mpas.geojson">
+                    <i class="bi bi-filetype-json"></i> MPAs (GeoJSON)
+                </a>
+                <a href="/api/export/mpas/shapefile" class="btn btn-outline-primary" download="mpas.zip">
+                    <i class="bi bi-file-earmark-zip"></i> MPAs (Shapefile)
+                </a>
+                <a href="/api/export/mpas/csv" class="btn btn-outline-primary" download="mpas.csv">
+                    <i class="bi bi-filetype-csv"></i> MPAs (CSV)
+                </a>
+                <a href="/api/export/bleaching/csv" class="btn btn-outline-secondary" download="bleaching.csv">
+                    <i class="bi bi-filetype-csv"></i> Bleaching (CSV)
+                </a>
+                <a href="/api/export/vessels/csv" class="btn btn-outline-secondary" download="vessels.csv">
+                    <i class="bi bi-filetype-csv"></i> Vessels (CSV)
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_showRejectModal)
+{
+    <div class="modal-backdrop" @onclick="CloseRejectModal"></div>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5>Reject Observation</h5>
+                <button class="btn-close" @onclick="CloseRejectModal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">Reason for rejection:</label>
+                <textarea class="form-control" rows="3" @bind="_rejectReason"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseRejectModal">Cancel</button>
+                <button class="btn btn-danger" @onclick="ConfirmReject" disabled="@string.IsNullOrWhiteSpace(_rejectReason)">
+                    Reject Observation
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .admin-dashboard {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: white;
+    }
+
+    .admin-header h4 {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .admin-content {
+        padding: 20px;
+    }
+
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+    }
+
+    .stat-icon.mpa { background: #d4edda; color: #155724; }
+    .stat-icon.reef { background: #cce5ff; color: #004085; }
+    .stat-icon.vessel { background: #e2e3e5; color: #383d41; }
+    .stat-icon.observation { background: #fff3cd; color: #856404; }
+    .stat-icon.alert { background: #f8d7da; color: #721c24; }
+
+    .stat-value { font-size: 24px; font-weight: 600; }
+    .stat-label { font-size: 12px; color: #6c757d; }
+
+    .activity-section, .moderation-section, .system-section, .export-section {
+        margin-bottom: 24px;
+    }
+
+    .activity-section h5, .moderation-section h5, .system-section h5, .export-section h5 {
+        margin-bottom: 12px;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .activity-cards {
+        display: flex;
+        gap: 16px;
+    }
+
+    .activity-card {
+        padding: 16px 24px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .activity-card.pending { background: #fff3cd; }
+    .activity-value { display: block; font-size: 28px; font-weight: 600; }
+    .activity-label { font-size: 13px; color: #6c757d; }
+
+    .observation-list {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    .observation-card {
+        padding: 16px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 3px solid #ffc107;
+    }
+
+    .observation-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .observation-type {
+        font-size: 11px;
+        text-transform: uppercase;
+        font-weight: 600;
+        color: #6c757d;
+    }
+
+    .observation-severity {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 10px;
+    }
+
+    .observation-severity.severity-1, .observation-severity.severity-2 { background: #f8d7da; color: #721c24; }
+    .observation-severity.severity-3 { background: #fff3cd; color: #856404; }
+    .observation-severity.severity-4, .observation-severity.severity-5 { background: #d4edda; color: #155724; }
+
+    .observation-card h6 { margin: 0 0 8px 0; }
+    .observation-desc { font-size: 13px; color: #6c757d; margin-bottom: 8px; }
+    .observation-meta { font-size: 12px; color: #6c757d; display: flex; gap: 12px; margin-bottom: 12px; }
+    .observation-actions { display: flex; gap: 8px; }
+
+    .system-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+
+    .system-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 3px solid #6c757d;
+    }
+
+    .system-item.healthy { border-left-color: #28a745; }
+    .system-item.unhealthy { border-left-color: #dc3545; }
+    .system-item.disabled { border-left-color: #ffc107; }
+
+    .system-item i { font-size: 18px; }
+    .system-item .status { margin-left: auto; font-size: 12px; font-weight: 500; }
+
+    .export-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .modal-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+    }
+
+    .modal-dialog {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1001;
+        width: 400px;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .modal-body { padding: 16px; }
+    .modal-footer { padding: 16px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #dee2e6; }
+
+    .spin { animation: spin 1s linear infinite; }
+    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    @@media (max-width: 992px) {
+        .stats-row { grid-template-columns: repeat(3, 1fr); }
+        .observation-list { grid-template-columns: 1fr; }
+        .system-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+
+@code {
+    private bool _isLoading = false;
+    private DashboardStats _stats = new();
+    private RecentActivity _recent = new();
+    private List<PendingObservation> _pendingObservations = new();
+    private SystemHealth _health = new();
+    private SystemConfig _config = new();
+    private bool _showRejectModal = false;
+    private Guid _rejectObservationId;
+    private string _rejectReason = "";
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshData();
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await RefreshData();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+    }
+
+    private async Task RefreshData()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var dashboardTask = Http.GetFromJsonAsync<DashboardResponse>("/api/admin/dashboard");
+            var pendingTask = Http.GetFromJsonAsync<PendingResponse>("/api/admin/observations/pending?pageSize=6");
+            var healthTask = Http.GetFromJsonAsync<SystemHealth>("/api/admin/system/health");
+            var configTask = Http.GetFromJsonAsync<ConfigResponse>("/api/admin/system/config");
+
+            await Task.WhenAll(dashboardTask, pendingTask, healthTask, configTask);
+
+            var dashboard = dashboardTask.Result;
+            if (dashboard != null)
+            {
+                _stats = dashboard.Counts ?? new();
+                _recent = dashboard.Recent ?? new();
+            }
+
+            _pendingObservations = pendingTask.Result?.Items ?? new();
+            _health = healthTask.Result ?? new();
+            var configResp = configTask.Result;
+            if (configResp?.Features != null)
+                _config = configResp.Features;
+        }
+        catch { }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ApproveObservation(Guid id)
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"/api/admin/observations/{id}/approve", new { });
+            if (response.IsSuccessStatusCode)
+            {
+                _pendingObservations.RemoveAll(o => o.Id == id);
+                _recent.PendingObservations = Math.Max(0, _recent.PendingObservations - 1);
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    private void ShowRejectModal(Guid id)
+    {
+        _rejectObservationId = id;
+        _rejectReason = "";
+        _showRejectModal = true;
+    }
+
+    private void CloseRejectModal()
+    {
+        _showRejectModal = false;
+    }
+
+    private async Task ConfirmReject()
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"/api/admin/observations/{_rejectObservationId}/reject",
+                new { reason = _rejectReason });
+            if (response.IsSuccessStatusCode)
+            {
+                _pendingObservations.RemoveAll(o => o.Id == _rejectObservationId);
+                _recent.PendingObservations = Math.Max(0, _recent.PendingObservations - 1);
+                _showRejectModal = false;
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    private string TruncateText(string? text, int maxLength) =>
+        string.IsNullOrEmpty(text) ? "" : text.Length <= maxLength ? text : text.Substring(0, maxLength) + "...";
+
+    private string FormatDate(DateTime date)
+    {
+        var diff = DateTime.UtcNow - date;
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return date.ToString("MMM d");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _refreshTimer?.Dispose();
+        await Task.CompletedTask;
+    }
+
+    private class DashboardResponse
+    {
+        public DashboardStats? Counts { get; set; }
+        public RecentActivity? Recent { get; set; }
+    }
+
+    private class DashboardStats
+    {
+        public int Mpas { get; set; }
+        public int Reefs { get; set; }
+        public int Vessels { get; set; }
+        public int Observations { get; set; }
+        public int AlertRules { get; set; }
+        public int ActiveAlerts { get; set; }
+    }
+
+    private class RecentActivity
+    {
+        public int BleachingAlerts { get; set; }
+        public int VesselEvents { get; set; }
+        public int PendingObservations { get; set; }
+    }
+
+    private class PendingResponse
+    {
+        public List<PendingObservation>? Items { get; set; }
+    }
+
+    private class PendingObservation
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = "";
+        public string? Description { get; set; }
+        public string Type { get; set; } = "";
+        public int Severity { get; set; }
+        public DateTime ObservationTime { get; set; }
+        public string? CitizenName { get; set; }
+        public int PhotoCount { get; set; }
+    }
+
+    private class SystemHealth
+    {
+        public string Status { get; set; } = "Unknown";
+        public string Database { get; set; } = "Unknown";
+    }
+
+    private class ConfigResponse
+    {
+        public SystemConfig? Features { get; set; }
+    }
+
+    private class SystemConfig
+    {
+        public bool AiEnabled { get; set; }
+        public bool AisEnabled { get; set; }
+        public bool BlobStorageConfigured { get; set; }
+        public bool GfwConfigured { get; set; }
+    }
+}

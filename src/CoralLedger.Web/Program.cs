@@ -30,14 +30,18 @@ builder.Services.AddQuartzJobs();
 builder.Services.AddSignalR();
 builder.Services.AddScoped<IAlertHubContext, AlertHubContext>();
 
-// Add Database with PostGIS support
-builder.AddMarineDatabase("marinedb");
+// Add Database with PostGIS support (skip in testing environment - tests configure their own)
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.AddMarineDatabase("marinedb");
+}
 
 var app = builder.Build();
 
-// Initialize and seed database
-using (var scope = app.Services.CreateScope())
+// Initialize and seed database (skip in testing environment)
+if (!app.Environment.IsEnvironment("Testing"))
 {
+    using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<MarineDbContext>();
 
     // Ensure database is created and apply any pending migrations
@@ -69,6 +73,8 @@ app.MapObservationEndpoints();
 app.MapAIEndpoints();
 app.MapAlertEndpoints();
 app.MapAisEndpoints();
+app.MapExportEndpoints();
+app.MapAdminEndpoints();
 
 // Map SignalR hub
 app.MapHub<AlertHub>("/hubs/alerts");
@@ -81,3 +87,6 @@ app.MapRazorComponents<App>()
 app.MapDefaultEndpoints();
 
 app.Run();
+
+// Make Program accessible for integration testing
+public partial class Program { }
