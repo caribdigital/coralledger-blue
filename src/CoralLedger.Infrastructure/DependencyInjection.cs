@@ -5,6 +5,7 @@ using CoralLedger.Infrastructure.Data;
 using CoralLedger.Infrastructure.ExternalServices;
 using CoralLedger.Infrastructure.Jobs;
 using CoralLedger.Infrastructure.Services;
+using CoralLedger.Infrastructure.Telemetry;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,6 +73,24 @@ public static class DependencyInjection
         // Register Cache service
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, MemoryCacheService>();
+
+        // Register Metrics
+        services.AddSingleton<MarineMetrics>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Add health checks for all infrastructure services
+    /// </summary>
+    public static IServiceCollection AddInfrastructureHealthChecks(this IServiceCollection services)
+    {
+        services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>("database", tags: new[] { "ready", "db" })
+            .AddCheck<NoaaHealthCheck>("noaa-api", tags: new[] { "ready", "external" })
+            .AddCheck<GfwHealthCheck>("gfw-api", tags: new[] { "ready", "external" })
+            .AddCheck<BlobStorageHealthCheck>("blob-storage", tags: new[] { "ready", "storage" })
+            .AddCheck<QuartzHealthCheck>("quartz-scheduler", tags: new[] { "ready", "jobs" });
 
         return services;
     }

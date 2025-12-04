@@ -7,6 +7,7 @@ using CoralLedger.Web.Components;
 using CoralLedger.Web.Endpoints;
 using CoralLedger.Web.Hubs;
 using CoralLedger.Web.Security;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +25,9 @@ builder.Services.AddApplication();
 // Add Infrastructure layer services (including external API clients)
 builder.Services.AddInfrastructure(builder.Configuration);
 
+// Add infrastructure health checks
+builder.Services.AddInfrastructureHealthChecks();
+
 // Add background job scheduler (Quartz.NET)
 builder.Services.AddQuartzJobs();
 
@@ -37,6 +41,34 @@ builder.Services.AddSecurityCors(builder.Configuration);
 
 // Add Performance: Response compression and caching
 builder.Services.AddPerformanceCompression();
+
+// Add OpenAPI documentation
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Info = new()
+        {
+            Title = "CoralLedger Blue API",
+            Version = "v1",
+            Description = "Marine Protected Area monitoring and management API for The Bahamas. " +
+                          "Provides endpoints for MPA data, vessel tracking, coral bleaching alerts, " +
+                          "citizen observations, and AI-powered marine insights.",
+            Contact = new()
+            {
+                Name = "CoralLedger Blue Team",
+                Email = "api@coralledger.blue",
+                Url = new Uri("https://coralledger.blue")
+            },
+            License = new()
+            {
+                Name = "MIT",
+                Url = new Uri("https://opensource.org/licenses/MIT")
+            }
+        };
+        return Task.CompletedTask;
+    });
+});
 
 // Add Database with PostGIS support (skip in testing environment - tests configure their own)
 if (!builder.Environment.IsEnvironment("Testing"))
@@ -63,6 +95,19 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     app.UseHsts();
+}
+
+// OpenAPI documentation (available in all environments)
+app.MapOpenApi();
+if (app.Environment.IsDevelopment())
+{
+    // Scalar API docs UI (only in development)
+    app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("CoralLedger Blue API");
+        options.WithTheme(ScalarTheme.BluePlanet);
+        options.WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+    });
 }
 
 // Security middleware
