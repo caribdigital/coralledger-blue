@@ -18,6 +18,8 @@ public class MarineDbContext : DbContext, IMarineDbContext
     public DbSet<BleachingAlert> BleachingAlerts => Set<BleachingAlert>();
     public DbSet<CitizenObservation> CitizenObservations => Set<CitizenObservation>();
     public DbSet<ObservationPhoto> ObservationPhotos => Set<ObservationPhoto>();
+    public DbSet<AlertRule> AlertRules => Set<AlertRule>();
+    public DbSet<Alert> Alerts => Set<Alert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

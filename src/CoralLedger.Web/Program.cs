@@ -1,9 +1,11 @@
 using CoralLedger.Application;
+using CoralLedger.Application.Common.Interfaces;
 using CoralLedger.Infrastructure;
 using CoralLedger.Infrastructure.Data;
 using CoralLedger.Infrastructure.Data.Seeding;
 using CoralLedger.Web.Components;
 using CoralLedger.Web.Endpoints;
+using CoralLedger.Web.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +25,10 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // Add background job scheduler (Quartz.NET)
 builder.Services.AddQuartzJobs();
+
+// Add SignalR for real-time notifications
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IAlertHubContext, AlertHubContext>();
 
 // Add Database with PostGIS support
 builder.AddMarineDatabase("marinedb");
@@ -61,6 +67,11 @@ app.MapBleachingEndpoints();
 app.MapJobEndpoints();
 app.MapObservationEndpoints();
 app.MapAIEndpoints();
+app.MapAlertEndpoints();
+app.MapAisEndpoints();
+
+// Map SignalR hub
+app.MapHub<AlertHub>("/hubs/alerts");
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

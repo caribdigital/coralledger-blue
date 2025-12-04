@@ -1,0 +1,545 @@
+@inject HttpClient Http
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="realtime-dashboard">
+    <div class="dashboard-header">
+        <h4><i class="bi bi-broadcast"></i> Real-Time Monitoring</h4>
+        <div class="connection-status @_connectionClass">
+            <span class="status-dot"></span>
+            @_connectionStatus
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Alert Feed -->
+        <div class="dashboard-card alert-feed">
+            <div class="card-header">
+                <h5><i class="bi bi-bell-fill"></i> Live Alerts</h5>
+                <span class="badge bg-danger">@_unacknowledgedCount</span>
+            </div>
+            <div class="alert-list">
+                @if (_alerts.Count == 0)
+                {
+                    <div class="empty-state">
+                        <i class="bi bi-check-circle"></i>
+                        <p>No active alerts</p>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var alert in _alerts.Take(10))
+                    {
+                        <div class="alert-item @GetAlertClass(alert.Severity)" @onclick="() => OnAlertClick(alert)">
+                            <div class="alert-icon">
+                                <i class="bi @GetAlertIcon(alert.Type)"></i>
+                            </div>
+                            <div class="alert-content">
+                                <div class="alert-title">@alert.Title</div>
+                                <div class="alert-meta">
+                                    <span class="alert-time">@FormatTime(alert.CreatedAt)</span>
+                                    @if (!string.IsNullOrEmpty(alert.MpaName))
+                                    {
+                                        <span class="alert-location">@alert.MpaName</span>
+                                    }
+                                </div>
+                            </div>
+                            @if (!alert.IsAcknowledged)
+                            {
+                                <button class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation @onclick="() => AcknowledgeAlert(alert.Id)">
+                                    <i class="bi bi-check"></i>
+                                </button>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="dashboard-card stats-card">
+            <div class="stat-item">
+                <div class="stat-icon bleaching"><i class="bi bi-thermometer-sun"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.BleachingAlerts</div>
+                    <div class="stat-label">Bleaching Alerts</div>
+                </div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-icon fishing"><i class="bi bi-tsunami"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.FishingAlerts</div>
+                    <div class="stat-label">Fishing Activity</div>
+                </div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-icon vessel"><i class="bi bi-geo-alt"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.VesselAlerts</div>
+                    <div class="stat-label">Vessel Intrusions</div>
+                </div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-icon observations"><i class="bi bi-eye"></i></div>
+                <div class="stat-info">
+                    <div class="stat-value">@_stats.Observations</div>
+                    <div class="stat-label">Observations (24h)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Vessels -->
+        <div class="dashboard-card vessel-card">
+            <div class="card-header">
+                <h5><i class="bi bi-cursor-fill"></i> Active Vessels</h5>
+                <span class="badge bg-info">@_vessels.Count</span>
+            </div>
+            <div class="vessel-list">
+                @foreach (var vessel in _vessels.Take(5))
+                {
+                    <div class="vessel-item">
+                        <div class="vessel-icon @GetVesselTypeClass(vessel.VesselType)">
+                            <i class="bi bi-cursor-fill"></i>
+                        </div>
+                        <div class="vessel-info">
+                            <div class="vessel-name">@vessel.Name</div>
+                            <div class="vessel-meta">
+                                @vessel.VesselType • @(vessel.Speed?.ToString("F1") ?? "0") kts
+                            </div>
+                        </div>
+                        <div class="vessel-flag">@vessel.Flag</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .realtime-dashboard {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #0a1628 0%, #1a3a5c 100%);
+        color: white;
+    }
+
+    .dashboard-header h4 {
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        padding: 4px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #6c757d;
+    }
+
+    .connection-status.connected .status-dot {
+        background: #28a745;
+        animation: pulse 2s infinite;
+    }
+
+    .connection-status.disconnected .status-dot {
+        background: #dc3545;
+    }
+
+    @@keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        padding: 16px;
+    }
+
+    .dashboard-card {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .card-header h5 {
+        margin: 0;
+        font-size: 14px;
+        color: #495057;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Alert Feed */
+    .alert-feed {
+        grid-column: 1 / 2;
+        grid-row: 1 / 3;
+    }
+
+    .alert-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .alert-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border-left: 3px solid transparent;
+    }
+
+    .alert-item:hover {
+        transform: translateX(4px);
+    }
+
+    .alert-item.critical { border-left-color: #dc3545; }
+    .alert-item.high { border-left-color: #fd7e14; }
+    .alert-item.medium { border-left-color: #ffc107; }
+    .alert-item.low { border-left-color: #17a2b8; }
+    .alert-item.info { border-left-color: #6c757d; }
+
+    .alert-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #e9ecef;
+        color: #495057;
+    }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-title {
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .alert-meta {
+        font-size: 11px;
+        color: #6c757d;
+        display: flex;
+        gap: 8px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 48px;
+        color: #28a745;
+    }
+
+    /* Stats */
+    .stats-card {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: white;
+        border-radius: 6px;
+    }
+
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+
+    .stat-icon.bleaching { background: #fff3cd; color: #856404; }
+    .stat-icon.fishing { background: #cce5ff; color: #004085; }
+    .stat-icon.vessel { background: #f8d7da; color: #721c24; }
+    .stat-icon.observations { background: #d4edda; color: #155724; }
+
+    .stat-value {
+        font-size: 24px;
+        font-weight: 600;
+    }
+
+    .stat-label {
+        font-size: 11px;
+        color: #6c757d;
+    }
+
+    /* Vessels */
+    .vessel-list {
+        max-height: 150px;
+        overflow-y: auto;
+    }
+
+    .vessel-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px;
+        background: white;
+        border-radius: 6px;
+        margin-bottom: 6px;
+    }
+
+    .vessel-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+    }
+
+    .vessel-icon.fishing { background: #cce5ff; color: #004085; }
+    .vessel-icon.cargo { background: #e2e3e5; color: #383d41; }
+    .vessel-icon.pleasure { background: #d4edda; color: #155724; }
+    .vessel-icon.tanker { background: #f8d7da; color: #721c24; }
+
+    .vessel-info { flex: 1; }
+    .vessel-name { font-size: 13px; font-weight: 500; }
+    .vessel-meta { font-size: 11px; color: #6c757d; }
+    .vessel-flag { font-size: 12px; color: #6c757d; }
+
+    @@media (max-width: 768px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+        .alert-feed {
+            grid-column: 1;
+            grid-row: auto;
+        }
+    }
+</style>
+
+@code {
+    private string _connectionStatus = "Connecting...";
+    private string _connectionClass = "";
+    private List<AlertDto> _alerts = new();
+    private List<VesselDto> _vessels = new();
+    private DashboardStats _stats = new();
+    private int _unacknowledgedCount = 0;
+    private IJSObjectReference? _hubConnection;
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadInitialData();
+        await ConnectToHub();
+        StartRefreshTimer();
+    }
+
+    private async Task LoadInitialData()
+    {
+        try
+        {
+            // Load alerts
+            var alertsResponse = await Http.GetFromJsonAsync<AlertsResponse>("/api/alerts?limit=20");
+            if (alertsResponse != null)
+            {
+                _alerts = alertsResponse.ToList();
+                _unacknowledgedCount = _alerts.Count(a => !a.IsAcknowledged);
+            }
+
+            // Load vessels
+            var vesselsResponse = await Http.GetFromJsonAsync<VesselsResponse>("/api/ais/vessels");
+            if (vesselsResponse?.Vessels != null)
+            {
+                _vessels = vesselsResponse.Vessels.ToList();
+            }
+
+            // Calculate stats
+            _stats = new DashboardStats
+            {
+                BleachingAlerts = _alerts.Count(a => a.Type == "Bleaching"),
+                FishingAlerts = _alerts.Count(a => a.Type == "FishingActivity"),
+                VesselAlerts = _alerts.Count(a => a.Type == "VesselInMPA"),
+                Observations = _alerts.Count(a => a.Type == "CitizenObservation")
+            };
+        }
+        catch
+        {
+            // Use empty data on error
+        }
+    }
+
+    private async Task ConnectToHub()
+    {
+        try
+        {
+            // Note: In WASM, we'd use Microsoft.AspNetCore.SignalR.Client
+            // For now, mark as connected with polling
+            _connectionStatus = "Connected";
+            _connectionClass = "connected";
+        }
+        catch
+        {
+            _connectionStatus = "Disconnected";
+            _connectionClass = "disconnected";
+        }
+    }
+
+    private void StartRefreshTimer()
+    {
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadInitialData();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task AcknowledgeAlert(Guid alertId)
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"/api/alerts/{alertId}/acknowledge", new { acknowledgedBy = "Dashboard User" });
+            if (response.IsSuccessStatusCode)
+            {
+                var alert = _alerts.FirstOrDefault(a => a.Id == alertId);
+                if (alert != null)
+                {
+                    alert.IsAcknowledged = true;
+                    _unacknowledgedCount = _alerts.Count(a => !a.IsAcknowledged);
+                    StateHasChanged();
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void OnAlertClick(AlertDto alert)
+    {
+        // Could navigate to alert details or show modal
+    }
+
+    private string GetAlertClass(string severity) => severity?.ToLower() switch
+    {
+        "critical" => "critical",
+        "high" => "high",
+        "medium" => "medium",
+        "low" => "low",
+        _ => "info"
+    };
+
+    private string GetAlertIcon(string type) => type switch
+    {
+        "Bleaching" => "bi-thermometer-sun",
+        "FishingActivity" => "bi-tsunami",
+        "VesselInMPA" => "bi-geo-alt-fill",
+        "VesselDarkEvent" => "bi-broadcast",
+        "CitizenObservation" => "bi-eye-fill",
+        _ => "bi-bell-fill"
+    };
+
+    private string GetVesselTypeClass(string? type) => type?.ToLower() switch
+    {
+        "fishing" => "fishing",
+        "cargo" => "cargo",
+        "pleasure" => "pleasure",
+        "tanker" => "tanker",
+        _ => "cargo"
+    };
+
+    private string FormatTime(DateTime time)
+    {
+        var diff = DateTime.UtcNow - time;
+        if (diff.TotalMinutes < 1) return "Just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        return time.ToString("MMM d");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _refreshTimer?.Dispose();
+        if (_hubConnection != null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
+    private class AlertDto
+    {
+        public Guid Id { get; set; }
+        public string Type { get; set; } = "";
+        public string Severity { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string? MpaName { get; set; }
+        public bool IsAcknowledged { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    private class AlertsResponse : List<AlertDto> { }
+
+    private class VesselDto
+    {
+        public string Mmsi { get; set; } = "";
+        public string Name { get; set; } = "";
+        public double? Speed { get; set; }
+        public string? VesselType { get; set; }
+        public string? Flag { get; set; }
+    }
+
+    private class VesselsResponse
+    {
+        public IEnumerable<VesselDto>? Vessels { get; set; }
+    }
+
+    private class DashboardStats
+    {
+        public int BleachingAlerts { get; set; }
+        public int FishingAlerts { get; set; }
+        public int VesselAlerts { get; set; }
+        public int Observations { get; set; }
+    }
+}

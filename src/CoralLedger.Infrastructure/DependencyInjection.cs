@@ -1,5 +1,6 @@
 using CoralLedger.Application.Common.Interfaces;
 using CoralLedger.Infrastructure.AI;
+using CoralLedger.Infrastructure.Alerts;
 using CoralLedger.Infrastructure.Data;
 using CoralLedger.Infrastructure.ExternalServices;
 using CoralLedger.Infrastructure.Jobs;
@@ -52,6 +53,18 @@ public static class DependencyInjection
         services.Configure<MarineAIOptions>(
             configuration.GetSection(MarineAIOptions.SectionName));
         services.AddScoped<IMarineAIService, MarineAIService>();
+
+        // Register Alert services
+        services.AddScoped<IAlertRuleEngine, AlertRuleEngine>();
+        services.AddScoped<IAlertNotificationService, AlertNotificationService>();
+
+        // Register AIS (vessel tracking) client
+        services.Configure<AisOptions>(
+            configuration.GetSection(AisOptions.SectionName));
+        services.AddHttpClient<IAisClient, AisClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
 
         return services;
     }

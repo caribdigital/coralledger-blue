@@ -14,6 +14,8 @@ public interface IMarineDbContext
     DbSet<BleachingAlert> BleachingAlerts { get; }
     DbSet<CitizenObservation> CitizenObservations { get; }
     DbSet<ObservationPhoto> ObservationPhotos { get; }
+    DbSet<AlertRule> AlertRules { get; }
+    DbSet<Alert> Alerts { get; }
 
     /// <summary>
     /// Provides access to database related operations like raw SQL execution

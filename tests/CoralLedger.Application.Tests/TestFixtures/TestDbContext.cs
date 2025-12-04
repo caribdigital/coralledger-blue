@@ -22,6 +22,8 @@ public class TestDbContext : DbContext, IMarineDbContext
     public DbSet<BleachingAlert> BleachingAlerts => Set<BleachingAlert>();
     public DbSet<CitizenObservation> CitizenObservations => Set<CitizenObservation>();
     public DbSet<ObservationPhoto> ObservationPhotos => Set<ObservationPhoto>();
+    public DbSet<AlertRule> AlertRules => Set<AlertRule>();
+    public DbSet<Alert> Alerts => Set<Alert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,6 +74,17 @@ public class TestDbContext : DbContext, IMarineDbContext
         modelBuilder.Entity<ObservationPhoto>(entity =>
         {
             entity.HasKey(e => e.Id);
+        });
+
+        modelBuilder.Entity<AlertRule>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+        });
+
+        modelBuilder.Entity<Alert>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Ignore(e => e.Location);  // Ignore geometry
         });
 
         base.OnModelCreating(modelBuilder);

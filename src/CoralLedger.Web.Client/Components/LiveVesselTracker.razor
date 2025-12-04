@@ -1,0 +1,454 @@
+@inject HttpClient Http
+@implements IAsyncDisposable
+
+<div class="vessel-tracker">
+    <div class="tracker-header">
+        <div class="header-title">
+            <i class="bi bi-broadcast-pin"></i>
+            <h5>Live Vessel Tracking</h5>
+        </div>
+        <div class="header-controls">
+            <span class="vessel-count">@_vessels.Count vessels</span>
+            <button class="btn btn-sm btn-outline-light" @onclick="RefreshVessels" disabled="@_isLoading">
+                <i class="bi @(_isLoading ? "bi-arrow-repeat spin" : "bi-arrow-clockwise")"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="tracker-content">
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <select class="form-select form-select-sm" @bind="_vesselTypeFilter">
+                <option value="">All Types</option>
+                <option value="Fishing">Fishing</option>
+                <option value="Cargo">Cargo</option>
+                <option value="Tanker">Tanker</option>
+                <option value="Pleasure">Pleasure</option>
+            </select>
+            <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" class="form-control form-control-sm" placeholder="Search vessel..." @bind="_searchQuery" @bind:event="oninput" />
+            </div>
+        </div>
+
+        <!-- Vessel Table -->
+        <div class="vessel-table-container">
+            <table class="vessel-table">
+                <thead>
+                    <tr>
+                        <th>Vessel</th>
+                        <th>Type</th>
+                        <th>Position</th>
+                        <th>Speed</th>
+                        <th>Course</th>
+                        <th>Last Update</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var vessel in FilteredVessels)
+                    {
+                        <tr class="@(vessel.Mmsi == _selectedVessel ? "selected" : "")">
+                            <td>
+                                <div class="vessel-cell">
+                                    <span class="vessel-flag">@GetFlagEmoji(vessel.Flag)</span>
+                                    <div>
+                                        <div class="vessel-name">@vessel.Name</div>
+                                        <div class="vessel-mmsi">MMSI: @vessel.Mmsi</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="type-badge @GetTypeClass(vessel.VesselType)">
+                                    @(vessel.VesselType ?? "Unknown")
+                                </span>
+                            </td>
+                            <td class="position-cell">
+                                <span>@FormatCoord(vessel.Latitude, true)</span>
+                                <span>@FormatCoord(vessel.Longitude, false)</span>
+                            </td>
+                            <td>
+                                <span class="speed-value">@(vessel.Speed?.ToString("F1") ?? "-")</span>
+                                <span class="speed-unit">kts</span>
+                            </td>
+                            <td>
+                                <div class="course-indicator" style="transform: rotate(@(vessel.Course ?? 0)deg)">
+                                    <i class="bi bi-arrow-up"></i>
+                                </div>
+                                <span class="course-value">@(vessel.Course?.ToString("F0") ?? "-")°</span>
+                            </td>
+                            <td class="time-cell">
+                                @FormatTime(vessel.Timestamp)
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-link" @onclick="() => SelectVessel(vessel.Mmsi)" title="Track vessel">
+                                    <i class="bi bi-geo-alt"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!_isDemo)
+        {
+            <div class="update-info">
+                <i class="bi bi-info-circle"></i>
+                Auto-refresh every 30 seconds. Last update: @_lastUpdate.ToString("HH:mm:ss")
+            </div>
+        }
+        else
+        {
+            <div class="demo-notice">
+                <i class="bi bi-exclamation-triangle"></i>
+                Demo mode: Configure AIS provider for live data
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .vessel-tracker {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .tracker-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #1a3a5c 0%, #0d2137 100%);
+        color: white;
+    }
+
+    .header-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .header-title h5 {
+        margin: 0;
+    }
+
+    .header-title i {
+        font-size: 20px;
+        color: #00bcd4;
+    }
+
+    .header-controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .vessel-count {
+        font-size: 13px;
+        opacity: 0.8;
+    }
+
+    .tracker-content {
+        padding: 16px;
+    }
+
+    .filter-bar {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .filter-bar .form-select {
+        width: 150px;
+    }
+
+    .search-box {
+        flex: 1;
+        position: relative;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+    }
+
+    .search-box input {
+        padding-left: 36px;
+    }
+
+    .vessel-table-container {
+        overflow-x: auto;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .vessel-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .vessel-table th {
+        text-align: left;
+        padding: 10px 12px;
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .vessel-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .vessel-table tr:hover {
+        background: #f8f9fa;
+    }
+
+    .vessel-table tr.selected {
+        background: #e3f2fd;
+    }
+
+    .vessel-cell {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .vessel-flag {
+        font-size: 20px;
+    }
+
+    .vessel-name {
+        font-weight: 500;
+    }
+
+    .vessel-mmsi {
+        font-size: 11px;
+        color: #6c757d;
+    }
+
+    .type-badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+    }
+
+    .type-badge.fishing { background: #cce5ff; color: #004085; }
+    .type-badge.cargo { background: #e2e3e5; color: #383d41; }
+    .type-badge.tanker { background: #f8d7da; color: #721c24; }
+    .type-badge.pleasure { background: #d4edda; color: #155724; }
+
+    .position-cell {
+        font-family: monospace;
+        font-size: 12px;
+    }
+
+    .position-cell span {
+        display: block;
+    }
+
+    .speed-value {
+        font-weight: 600;
+    }
+
+    .speed-unit {
+        font-size: 11px;
+        color: #6c757d;
+    }
+
+    .course-indicator {
+        display: inline-block;
+        color: #0d6efd;
+        margin-right: 4px;
+    }
+
+    .course-value {
+        font-family: monospace;
+    }
+
+    .time-cell {
+        color: #6c757d;
+        font-size: 12px;
+    }
+
+    .update-info, .demo-notice {
+        margin-top: 12px;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .update-info {
+        background: #e9ecef;
+        color: #495057;
+    }
+
+    .demo-notice {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public EventCallback<string> OnVesselSelected { get; set; }
+
+    private List<VesselPosition> _vessels = new();
+    private string _vesselTypeFilter = "";
+    private string _searchQuery = "";
+    private string? _selectedVessel = null;
+    private bool _isLoading = false;
+    private bool _isDemo = true;
+    private DateTime _lastUpdate = DateTime.UtcNow;
+    private System.Threading.Timer? _refreshTimer;
+
+    private IEnumerable<VesselPosition> FilteredVessels =>
+        _vessels.Where(v =>
+            (string.IsNullOrEmpty(_vesselTypeFilter) || v.VesselType == _vesselTypeFilter) &&
+            (string.IsNullOrEmpty(_searchQuery) ||
+             v.Name.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ||
+             v.Mmsi.Contains(_searchQuery))
+        );
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshVessels();
+        StartRefreshTimer();
+    }
+
+    private void StartRefreshTimer()
+    {
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await RefreshVessels();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+    }
+
+    private async Task RefreshVessels()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.GetFromJsonAsync<VesselResponse>("/api/ais/vessels");
+            if (response != null)
+            {
+                _vessels = response.Vessels?.ToList() ?? new();
+                _isDemo = response.IsDemo;
+                _lastUpdate = DateTime.UtcNow;
+            }
+        }
+        catch
+        {
+            // Keep existing data on error
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task SelectVessel(string mmsi)
+    {
+        _selectedVessel = mmsi;
+        await OnVesselSelected.InvokeAsync(mmsi);
+    }
+
+    private string GetFlagEmoji(string? flag)
+    {
+        if (string.IsNullOrEmpty(flag)) return "🏳️";
+        return flag.ToUpper() switch
+        {
+            "BS" => "🇧🇸",
+            "US" => "🇺🇸",
+            "PA" => "🇵🇦",
+            "LR" => "🇱🇷",
+            "MH" => "🇲🇭",
+            "HK" => "🇭🇰",
+            "SG" => "🇸🇬",
+            "MT" => "🇲🇹",
+            "CY" => "🇨🇾",
+            "GR" => "🇬🇷",
+            _ => "🏳️"
+        };
+    }
+
+    private string GetTypeClass(string? type) => type?.ToLower() switch
+    {
+        "fishing" => "fishing",
+        "cargo" => "cargo",
+        "tanker" => "tanker",
+        "pleasure" => "pleasure",
+        _ => ""
+    };
+
+    private string FormatCoord(double coord, bool isLat)
+    {
+        var dir = isLat ? (coord >= 0 ? "N" : "S") : (coord >= 0 ? "E" : "W");
+        return $"{Math.Abs(coord):F4}° {dir}";
+    }
+
+    private string FormatTime(DateTime time)
+    {
+        var diff = DateTime.UtcNow - time;
+        if (diff.TotalMinutes < 1) return "Just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        return time.ToString("HH:mm");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _refreshTimer?.Dispose();
+        await Task.CompletedTask;
+    }
+
+    private class VesselPosition
+    {
+        public string Mmsi { get; set; } = "";
+        public string Name { get; set; } = "";
+        public double Longitude { get; set; }
+        public double Latitude { get; set; }
+        public double? Speed { get; set; }
+        public double? Course { get; set; }
+        public string? VesselType { get; set; }
+        public string? Flag { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+
+    private class VesselResponse
+    {
+        public int Count { get; set; }
+        public bool IsDemo { get; set; }
+        public IEnumerable<VesselPosition>? Vessels { get; set; }
+    }
+}
