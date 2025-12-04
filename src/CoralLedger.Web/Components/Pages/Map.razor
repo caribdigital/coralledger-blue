@@ -52,8 +52,7 @@
             <div class="row g-0" style="height: calc(100vh - 180px);">
                 <div class="col-md-8 col-lg-9" style="height: 100%;">
                     <div class="map-container">
-                        <CoralLedger.Web.Client.Components.MpaMapComponent
-                            @rendermode="InteractiveWebAssembly"
+                        <LeafletMapComponent
                             OnMpaSelected="HandleMpaSelected"
                             SelectedMpaId="@_selectedMpaId"
                             ShowLegend="true"

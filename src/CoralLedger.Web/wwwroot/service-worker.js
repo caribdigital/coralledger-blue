@@ -1,6 +1,6 @@
 // CoralLedger Blue Service Worker
-// Version: 2.0.0 - Enhanced offline-first with IndexedDB
-const CACHE_VERSION = 'v2';
+// Version: 3.0.0 - Fixed CSS caching and offline detection
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `coralledger-static-${CACHE_VERSION}`;
 const API_CACHE = `coralledger-api-${CACHE_VERSION}`;
 const IMAGE_CACHE = `coralledger-images-${CACHE_VERSION}`;
@@ -12,6 +12,7 @@ const STATIC_ASSETS = [
     '/manifest.json',
     '/favicon.png',
     '/app.css',
+    '/CoralLedger.Web.styles.css',
     '/css/mobile.css',
     '/js/mobile.js',
     '/lib/bootstrap/dist/css/bootstrap.min.css',

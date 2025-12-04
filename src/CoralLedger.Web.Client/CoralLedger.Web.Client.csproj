@@ -3,6 +3,8 @@
   <PropertyGroup>
     <!-- This is a Razor Class Library, not a standalone WASM app -->
     <OutputType>Library</OutputType>
+    <!-- Enable native WASM build for SkiaSharp (required for Mapsui) -->
+    <WasmBuildNative>true</WasmBuildNative>
   </PropertyGroup>
 
   <ItemGroup>

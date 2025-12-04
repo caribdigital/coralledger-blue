@@ -16,19 +16,19 @@ public class BleachingPage : BasePage
         // Wait for data to load
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-        // Look for bleaching-related content
+        // Look for specific bleaching-related content using First to avoid strict mode violations
         var content = Page.GetByText("Alert Level").Or(
             Page.GetByText("DHW")).Or(
             Page.GetByText("Degree Heating")).Or(
             Page.GetByText("SST")).Or(
-            Page.GetByText("Temperature"));
+            Page.GetByText("Temperature")).First;
         return await content.IsVisibleAsync();
     }
 
     public async Task<bool> HasChartsAsync()
     {
         // Look for chart elements (ApexCharts or similar)
-        var chart = Page.Locator("canvas, svg[class*='chart'], .apexcharts-canvas, [class*='chart']");
+        var chart = Page.Locator("canvas, svg[class*='chart'], .apexcharts-canvas, [class*='chart']").First;
         return await chart.IsVisibleAsync();
     }
 
@@ -40,7 +40,7 @@ public class BleachingPage : BasePage
 
     public async Task<bool> HasMpaDropdownAsync()
     {
-        var dropdown = Page.Locator("select, [class*='dropdown'], [role='listbox']");
+        var dropdown = Page.Locator("select, [class*='dropdown'], [role='listbox']").First;
         return await dropdown.IsVisibleAsync();
     }
 

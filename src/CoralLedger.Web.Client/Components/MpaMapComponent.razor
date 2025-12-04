@@ -5,7 +5,7 @@
 @using Mapsui.Styles
 @inject HttpClient Http
 
-<div class="mpa-map-container" style="height: 100%; width: 100%; position: relative;">
+<div class="mpa-map-container" style="height: calc(100vh - 200px); min-height: 500px; width: 100%; position: relative;">
     @if (_loading)
     {
         <div class="loading-overlay">
@@ -14,7 +14,16 @@
             </div>
         </div>
     }
-    <MapControl @ref="_mapControl" Map="_map" />
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger m-3" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> @_errorMessage
+        </div>
+    }
+    else
+    {
+        <MapControl @ref="_mapControl" Map="_map" />
+    }
 
     @if (_showLegend)
     {
@@ -223,12 +232,23 @@
     private List<FishingEventDto> _fishingEvents = new();
     private bool _fishingEventsLoaded = false;
 
+    private string? _errorMessage;
+
     protected override async Task OnInitializedAsync()
     {
-        _showLegend = ShowLegend;
-        InitializeMap();
-        await LoadMpaDataAsync();
-        _loading = false;
+        try
+        {
+            _showLegend = ShowLegend;
+            InitializeMap();
+            await LoadMpaDataAsync();
+            _loading = false;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Map initialization failed: {ex.Message}";
+            _loading = false;
+            Console.WriteLine($"MpaMapComponent error: {ex}");
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -561,6 +581,7 @@
 
         foreach (var evt in events)
         {
+            Console.WriteLine($"Fishing event {evt.EventId} start time: {evt.StartTime}");
             try
             {
                 var (x, y) = SphericalMercator.FromLonLat(evt.Longitude, evt.Latitude);

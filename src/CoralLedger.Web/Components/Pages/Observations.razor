@@ -1,7 +1,6 @@
 @page "/observations"
 @page "/observations/new"
 @rendermode InteractiveServer
-@using CoralLedger.Web.Client.Components
 @inject HttpClient Http
 
 <PageTitle>Citizen Observations - CoralLedger Blue</PageTitle>
@@ -31,7 +30,7 @@
                     @if (_viewMode == "map")
                     {
                         <div style="height: 400px;">
-                            <MpaMapComponent ShowLegend="false" />
+                            <LeafletMapComponent ShowLegend="false" />
                         </div>
                     }
                     else

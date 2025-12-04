@@ -69,7 +69,7 @@ We're actively looking for contributors in these areas:
 |-------|------------|
 | **Runtime** | .NET 10 |
 | **Frontend** | Blazor Server + WebAssembly (Auto mode) |
-| **Mapping** | Mapsui 5.0 with OpenStreetMap |
+| **Mapping** | Leaflet.js 1.9.4 with OpenStreetMap |
 | **Database** | PostgreSQL 16 + PostGIS 3.4 |
 | **ORM** | Entity Framework Core 10 |
 | **Spatial** | NetTopologySuite 2.6 |
@@ -186,7 +186,7 @@ The application comes pre-seeded with 8 Bahamas Marine Protected Areas:
 - [x] .NET Aspire orchestration
 
 ### Phase 2: Interactive Map ✅
-- [x] Mapsui map component with OpenStreetMap
+- [x] Leaflet.js map component with OpenStreetMap
 - [x] MPA polygon rendering with protection level styling
 - [x] GeoJSON API endpoints
 - [x] Blazor WebAssembly integration
@@ -278,7 +278,7 @@ If CoralLedger Blue helps you or inspires you, consider giving it a ⭐ — it h
 - **Protected Planet / WDPA** - Global protected areas database
 - **Allen Coral Atlas** - Coral reef mapping data
 - **.NET Team** - Aspire, Blazor, and EF Core
-- **Mapsui** - Open source .NET map component
+- **Leaflet.js** - Open source JavaScript map library
 
 ---
 

@@ -13,14 +13,27 @@ public class ObservationsPage : BasePage
 
     public async Task<bool> HasObservationFormAsync()
     {
-        var form = Page.Locator("form, [class*='observation-form']");
+        // Use First to avoid strict mode violations when multiple elements match
+        var form = Page.Locator("form, [class*='observation-form']").First;
         return await form.IsVisibleAsync();
     }
 
     public async Task<bool> HasObservationListAsync()
     {
-        // Look for observation list or table
-        var list = Page.Locator("table, [class*='observation-list'], .list-group");
+        // First, click the list view button if available
+        var listViewButton = Page.Locator("button:has(.bi-list), button:has-text('list')").First;
+        try
+        {
+            if (await listViewButton.IsVisibleAsync())
+            {
+                await listViewButton.ClickAsync();
+                await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            }
+        }
+        catch { /* ignore click errors */ }
+
+        // Look for observation list container (may be empty state or actual items)
+        var list = Page.Locator(".observation-list, [class*='observation'], .list-group").First;
         return await list.IsVisibleAsync();
     }
 

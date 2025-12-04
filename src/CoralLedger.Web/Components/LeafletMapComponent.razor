@@ -1,0 +1,307 @@
+@using System.Text.Json
+@inject IJSRuntime JS
+@inject HttpClient Http
+@implements IAsyncDisposable
+
+<div class="leaflet-map-container" style="height: calc(100vh - 200px); min-height: 500px; width: 100%; position: relative;">
+    @if (_loading)
+    {
+        <div class="loading-overlay">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading map...</span>
+            </div>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger m-3" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> @_errorMessage
+        </div>
+    }
+
+    <div id="@_mapId" style="height: 100%; width: 100%;"></div>
+
+    @if (ShowLegend)
+    {
+        <div class="map-legend">
+            <h6>Protection Levels</h6>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #dc3545;"></span>
+                <span>No-Take Zone</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #fd7e14;"></span>
+                <span>Highly Protected</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #0dcaf0;"></span>
+                <span>Lightly Protected</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color" style="background-color: #6c757d;"></span>
+                <span>Minimal Protection</span>
+            </div>
+            @if (ShowFishingEvents)
+            {
+                <hr class="my-2" />
+                <h6>Fishing Activity</h6>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background-color: #dc3545;"></span>
+                    <span>Last 7 days</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background-color: #fd7e14;"></span>
+                    <span>7-14 days ago</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background-color: #ffc107;"></span>
+                    <span>14-30 days ago</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background-color: #6c757d;"></span>
+                    <span>Older</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot legend-mpa-violation" style="background-color: #dc3545; border: 3px solid #ff0000;"></span>
+                    <span>Inside MPA</span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .leaflet-map-container {
+        position: relative;
+        min-height: 500px;
+    }
+
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .map-legend {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        background: white;
+        padding: 12px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        z-index: 999;
+    }
+
+    .map-legend h6 {
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 4px;
+        font-size: 0.85rem;
+    }
+
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        margin-right: 8px;
+        border: 1px solid rgba(0,0,0,0.2);
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        border: 2px solid white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+</style>
+
+@code {
+    [Parameter]
+    public EventCallback<Guid> OnMpaSelected { get; set; }
+
+    [Parameter]
+    public Guid? SelectedMpaId { get; set; }
+
+    [Parameter]
+    public bool ShowLegend { get; set; } = true;
+
+    [Parameter]
+    public bool ShowFishingEvents { get; set; } = false;
+
+    [Parameter]
+    public DateTime? FishingEventsStartDate { get; set; }
+
+    [Parameter]
+    public DateTime? FishingEventsEndDate { get; set; }
+
+    private string _mapId = $"leaflet-map-{Guid.NewGuid():N}";
+    private bool _loading = true;
+    private string? _errorMessage;
+    private bool _mapInitialized = false;
+    private bool _fishingEventsLoaded = false;
+    private DotNetObjectReference<LeafletMapComponent>? _dotNetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _dotNetRef = DotNetObjectReference.Create(this);
+
+                // Initialize map centered on Bahamas
+                await JS.InvokeVoidAsync("leafletMap.initialize", _mapId, 24.5, -77.5, 7);
+                _mapInitialized = true;
+
+                // Load MPA data
+                await LoadMpaDataAsync();
+
+                _loading = false;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = $"Map initialization failed: {ex.Message}";
+                _loading = false;
+                Console.WriteLine($"LeafletMapComponent error: {ex}");
+                StateHasChanged();
+            }
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_mapInitialized) return;
+
+        // Handle MPA selection from parent
+        if (SelectedMpaId.HasValue)
+        {
+            await JS.InvokeVoidAsync("leafletMap.zoomToMpa", _mapId, SelectedMpaId.Value.ToString());
+            await JS.InvokeVoidAsync("leafletMap.highlightMpa", _mapId, SelectedMpaId.Value.ToString());
+        }
+
+        // Handle fishing events toggle
+        if (ShowFishingEvents && !_fishingEventsLoaded)
+        {
+            await LoadFishingEventsAsync();
+        }
+        else if (!ShowFishingEvents && _fishingEventsLoaded)
+        {
+            await JS.InvokeVoidAsync("leafletMap.removeFishingEventsLayer", _mapId);
+            _fishingEventsLoaded = false;
+        }
+    }
+
+    private async Task LoadMpaDataAsync()
+    {
+        try
+        {
+            var response = await Http.GetAsync("/api/mpas/geojson");
+            if (response.IsSuccessStatusCode)
+            {
+                var geojson = await response.Content.ReadAsStringAsync();
+                var geojsonObj = JsonSerializer.Deserialize<JsonElement>(geojson);
+                await JS.InvokeVoidAsync("leafletMap.addMpaLayer", _mapId, geojsonObj, _dotNetRef);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading MPA data: {ex.Message}");
+        }
+    }
+
+    private async Task LoadFishingEventsAsync()
+    {
+        try
+        {
+            var start = FishingEventsStartDate ?? DateTime.UtcNow.AddDays(-30);
+            var end = FishingEventsEndDate ?? DateTime.UtcNow;
+
+            var response = await Http.GetAsync($"/api/vessels/fishing-events/bahamas?startDate={start:O}&endDate={end:O}");
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var events = JsonSerializer.Deserialize<List<FishingEventDto>>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (events != null && events.Count > 0)
+                {
+                    await JS.InvokeVoidAsync("leafletMap.addFishingEventsLayer", _mapId, events, _dotNetRef);
+                    _fishingEventsLoaded = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading fishing events: {ex.Message}");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnMpaClicked(string mpaId)
+    {
+        if (Guid.TryParse(mpaId, out var guid))
+        {
+            await OnMpaSelected.InvokeAsync(guid);
+        }
+    }
+
+    [JSInvokable]
+    public Task OnFishingEventClicked(string eventId)
+    {
+        Console.WriteLine($"Fishing event clicked: {eventId}");
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_mapInitialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("leafletMap.dispose", _mapId);
+            }
+            catch
+            {
+                // Ignore disposal errors
+            }
+        }
+        _dotNetRef?.Dispose();
+    }
+
+    public class FishingEventDto
+    {
+        public string EventId { get; set; } = "";
+        public string VesselId { get; set; } = "";
+        public string? VesselName { get; set; }
+        public double Longitude { get; set; }
+        public double Latitude { get; set; }
+        public DateTime StartTime { get; set; }
+        public DateTime? EndTime { get; set; }
+        public double? DurationHours { get; set; }
+        public double? DistanceKm { get; set; }
+        public string? EventType { get; set; }
+        public bool? IsInMpa { get; set; }
+        public string? MpaName { get; set; }
+    }
+}
