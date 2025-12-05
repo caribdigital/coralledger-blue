@@ -77,9 +77,50 @@ public static class DependencyInjection
         // Register MPA Proximity Service (spatial analysis)
         services.AddScoped<IMpaProximityService, MpaProximityService>();
 
-        // Register Cache service
-        services.AddMemoryCache();
-        services.AddSingleton<ICacheService, MemoryCacheService>();
+        // Register Cache service (Redis or in-memory fallback)
+        var redisOptions = configuration.GetSection(RedisCacheOptions.SectionName).Get<RedisCacheOptions>()
+            ?? new RedisCacheOptions();
+
+        // Override connection string from environment variable if set
+        var connectionStringFromEnv = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING");
+        if (!string.IsNullOrEmpty(connectionStringFromEnv))
+        {
+            redisOptions.ConnectionString = connectionStringFromEnv;
+        }
+
+        if (redisOptions.Enabled)
+        {
+            try
+            {
+                // Configure Redis distributed cache
+                services.AddStackExchangeRedisCache(options =>
+                {
+                    options.Configuration = redisOptions.ConnectionString;
+                    options.InstanceName = redisOptions.InstanceName;
+                });
+
+                // Register Redis connection multiplexer for advanced operations (prefix-based removal)
+                services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
+                    StackExchange.Redis.ConnectionMultiplexer.Connect(redisOptions.ConnectionString));
+
+                services.AddSingleton<ICacheService, RedisCacheService>();
+            }
+            catch (Exception)
+            {
+                // If Redis connection fails, fall back to in-memory cache
+                services.AddMemoryCache();
+                services.AddSingleton<ICacheService, MemoryCacheService>();
+            }
+        }
+        else
+        {
+            // Use in-memory cache when Redis is disabled
+            services.AddMemoryCache();
+            services.AddSingleton<ICacheService, MemoryCacheService>();
+        }
+
+        services.Configure<RedisCacheOptions>(
+            configuration.GetSection(RedisCacheOptions.SectionName));
 
         // Register Metrics
         services.AddSingleton<MarineMetrics>();
