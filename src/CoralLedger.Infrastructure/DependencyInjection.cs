@@ -123,15 +123,13 @@ public static class DependencyInjection
             {
                 // If Redis connection fails during configuration, fall back to in-memory cache
                 // Note: Actual connection happens lazily, so this mainly catches configuration errors
-                services.AddMemoryCache();
-                services.AddSingleton<ICacheService, MemoryCacheService>();
+                AddInMemoryCache(services);
             }
         }
         else
         {
             // Use in-memory cache when Redis is disabled
-            services.AddMemoryCache();
-            services.AddSingleton<ICacheService, MemoryCacheService>();
+            AddInMemoryCache(services);
         }
 
         services.Configure<RedisCacheOptions>(
@@ -141,6 +139,15 @@ public static class DependencyInjection
         services.AddSingleton<MarineMetrics>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers in-memory cache as fallback when Redis is unavailable or disabled
+    /// </summary>
+    private static void AddInMemoryCache(IServiceCollection services)
+    {
+        services.AddMemoryCache();
+        services.AddSingleton<ICacheService, MemoryCacheService>();
     }
 
     /// <summary>

@@ -366,7 +366,14 @@ public class CoralReefWatchClient : ICoralReefWatchClient
 }
 
 /// <summary>
-/// Generic wrapper class for caching data types, including nullable values and collections
+/// Generic wrapper class for caching data types, including nullable values and collections.
+/// 
+/// Note: These wrappers are necessary because:
+/// 1. IDistributedCache requires non-null values for serialization
+/// 2. IEnumerable<T> needs wrapping to serialize correctly as JSON
+/// 3. Nullable reference types (T?) don't satisfy the 'where T : class' constraint
+/// 
+/// While this adds some complexity, it provides type-safe caching with proper null handling.
 /// </summary>
 internal class CacheWrapper<T>
 {

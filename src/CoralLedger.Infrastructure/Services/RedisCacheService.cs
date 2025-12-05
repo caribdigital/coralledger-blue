@@ -144,6 +144,9 @@ public class RedisCacheService : ICacheService
                 var pattern = $"{prefix}*";
                 var keysToRemove = new List<RedisKey>();
 
+                // Note: Using KEYS for simplicity. For production systems with millions of keys,
+                // consider using SCAN for cursor-based iteration to avoid blocking Redis.
+                // Current scale (8 MPAs) makes KEYS acceptable.
                 await foreach (var key in server.KeysAsync(pattern: pattern))
                 {
                     keysToRemove.Add(key);
@@ -151,14 +154,10 @@ public class RedisCacheService : ICacheService
 
                 if (keysToRemove.Count > 0)
                 {
-                    // Use batch removal for better performance
+                    // Use batch deletion for optimal performance
                     var db = _redis.GetDatabase();
-                    var tasks = new List<Task>();
-                    foreach (var key in keysToRemove)
-                    {
-                        tasks.Add(db.KeyDeleteAsync(key));
-                    }
-                    await Task.WhenAll(tasks);
+                    var keyArray = keysToRemove.ToArray();
+                    await db.KeyDeleteAsync(keyArray);
                 }
 
                 _logger.LogDebug("Cache removed {Count} entries with prefix: {Prefix}", keysToRemove.Count, prefix);
@@ -176,6 +175,12 @@ public class RedisCacheService : ICacheService
         }
     }
 
+    /// <summary>
+    /// Gets a value from cache or sets it using a factory function.
+    /// Note: Unlike Get/SetAsync which gracefully handle failures, this method propagates
+    /// factory exceptions to ensure data consistency - if the factory fails, the caller
+    /// should know rather than getting a null/default value.
+    /// </summary>
     public async Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiration = null, CancellationToken ct = default) where T : class
     {
         ct.ThrowIfCancellationRequested();
