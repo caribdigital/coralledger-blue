@@ -91,9 +91,30 @@ public static class DependencyInjection
 
         if (redisOptions.Enabled)
         {
+            // Test Redis connection before registering services
+            bool redisAvailable = false;
             try
             {
-                // Configure Redis distributed cache
+                var testConnectionString = redisOptions.ConnectionString + ",connectTimeout=5000,abortConnect=false";
+                using var testConnection = StackExchange.Redis.ConnectionMultiplexer.Connect(testConnectionString);
+                redisAvailable = testConnection.IsConnected;
+                testConnection.Close();
+
+                if (redisAvailable)
+                {
+                    Console.WriteLine($"Redis connection successful: {redisOptions.ConnectionString}");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Redis is not available, will fall back to in-memory cache
+                Console.WriteLine($"Redis connection failed: {ex.Message}. Falling back to in-memory cache.");
+                redisAvailable = false;
+            }
+
+            if (redisAvailable)
+            {
+                // Redis is available, register Redis cache
                 services.AddStackExchangeRedisCache(options =>
                 {
                     options.Configuration = redisOptions.ConnectionString;
@@ -103,32 +124,22 @@ public static class DependencyInjection
                 // Register Redis connection multiplexer for advanced operations (prefix-based removal)
                 services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
                 {
-                    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-                    var logger = loggerFactory.CreateLogger("Redis");
-                    try
-                    {
-                        return StackExchange.Redis.ConnectionMultiplexer.Connect(redisOptions.ConnectionString);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "Failed to connect to Redis at {ConnectionString}. Falling back to in-memory cache.", 
-                            redisOptions.ConnectionString);
-                        throw; // Re-throw to trigger fallback
-                    }
+                    return StackExchange.Redis.ConnectionMultiplexer.Connect(redisOptions.ConnectionString);
                 });
 
                 services.AddSingleton<ICacheService, RedisCacheService>();
             }
-            catch (Exception)
+            else
             {
-                // If Redis connection fails during configuration, fall back to in-memory cache
-                // Note: Actual connection happens lazily, so this mainly catches configuration errors
+                // Redis connection test failed, fall back to in-memory cache
+                Console.WriteLine("Using in-memory cache as fallback.");
                 AddInMemoryCache(services);
             }
         }
         else
         {
             // Use in-memory cache when Redis is disabled
+            Console.WriteLine("Redis disabled in configuration. Using in-memory cache.");
             AddInMemoryCache(services);
         }
 
