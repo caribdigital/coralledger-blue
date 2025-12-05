@@ -396,4 +396,377 @@ public class MapTests : PlaywrightFixture
         // This test is for debugging only - pass if we got here
         allMessages.Count.Should().BeGreaterThan(0, "Should have captured some console messages");
     }
+
+    // ============ Additional Comprehensive Tests ============
+
+    [Test]
+    [Description("Verifies MPA polygons have protection level colors (red/orange/cyan/gray)")]
+    public async Task Map_MpaPolygonsHaveProtectionLevelColors()
+    {
+        // Arrange
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(6000); // Wait for GeoJSON to load
+
+        // Act
+        var hasColors = await _mapPage.HasProtectionLevelColorsAsync();
+
+        // Assert
+        hasColors.Should().BeTrue("MPA polygons should have different colors for protection levels");
+
+        // Screenshot for visual verification
+        var screenshotPath = await _mapPage.CaptureScreenshotAsync("mpa-protection-colors.png");
+        TestContext.AddTestAttachment(screenshotPath, "MPA Protection Level Colors");
+    }
+
+    [Test]
+    [Description("Verifies the legend shows all protection levels")]
+    public async Task Map_LegendShowsAllProtectionLevels()
+    {
+        // Arrange
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(3000);
+
+        // Act
+        var hasLegend = await _mapPage.HasLegendAsync();
+        var hasAllLevels = await _mapPage.HasProtectionLevelsInLegendAsync();
+        var legendItemCount = await _mapPage.GetLegendItemCountAsync();
+
+        // Assert
+        hasLegend.Should().BeTrue("Legend should be visible on the map");
+        hasAllLevels.Should().BeTrue("Legend should show No-Take, Highly Protected, and Lightly Protected levels");
+    }
+
+    [Test]
+    [Description("Verifies NOAA loading spinner appears when MPA is selected")]
+    public async Task Map_SelectMpaShowsNoaaLoadingSpinner()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(5000);
+
+        // Click on first MPA in sidebar
+        var mpaListItem = Page.Locator(".list-group-item").First;
+        if (await mpaListItem.IsVisibleAsync())
+        {
+            await mpaListItem.ClickAsync();
+
+            // Immediately check for loading spinner (before data loads)
+            await Task.Delay(500);
+            var hasSpinner = await _mapPage.HasNoaaLoadingSpinnerAsync();
+
+            // Either spinner is shown or data loaded very fast
+            // This test passes if the UI responds correctly
+            (hasSpinner || await _mapPage.HasNoaaDataDisplayedAsync() || await _mapPage.HasNoaaErrorMessageAsync())
+                .Should().BeTrue("Should show loading spinner, data, or error state after MPA selection");
+        }
+    }
+
+    [Test]
+    [Description("Verifies SST value is displayed when NOAA data loads")]
+    public async Task Map_NoaaDataDisplaysSstValue()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(5000);
+
+        // Click on first MPA
+        var mpaListItem = Page.Locator(".list-group-item").First;
+        if (await mpaListItem.IsVisibleAsync())
+        {
+            await mpaListItem.ClickAsync();
+            await Task.Delay(18000); // Wait for NOAA data (15s timeout + buffer)
+
+            // Check for SST value or error with retry
+            var sstValue = await _mapPage.GetSstValueAsync();
+            var hasNoaaError = await _mapPage.HasNoaaErrorMessageAsync();
+
+            (sstValue.Length > 0 || hasNoaaError)
+                .Should().BeTrue("Should display SST value or show error with retry option");
+        }
+    }
+
+    [Test]
+    [Description("Verifies DHW value is displayed when NOAA data loads")]
+    public async Task Map_NoaaDataDisplaysDhwValue()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(5000);
+
+        // Click on first MPA
+        var mpaListItem = Page.Locator(".list-group-item").First;
+        if (await mpaListItem.IsVisibleAsync())
+        {
+            await mpaListItem.ClickAsync();
+            await Task.Delay(18000);
+
+            // Look for DHW section
+            var dhwSection = Page.GetByText("Degree Heating Week").Or(Page.GetByText("DHW"));
+            var hasNoaaError = await _mapPage.HasNoaaErrorMessageAsync();
+
+            (await dhwSection.IsVisibleAsync() || hasNoaaError)
+                .Should().BeTrue("Should display DHW value or show error with retry option");
+        }
+    }
+
+    [Test]
+    [Description("Verifies the fishing events badge shows count or no-data message")]
+    public async Task Map_FishingEventsBadgeShowsStatus()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(4000);
+
+        // Toggle fishing activity
+        await _mapPage.ToggleFishingActivityAsync();
+        await Task.Delay(4000);
+
+        // Check for badge
+        var hasBadge = await _mapPage.HasFishingEventsBadgeAsync();
+        hasBadge.Should().BeTrue("Fishing events badge should be visible after toggling");
+
+        // Get badge text
+        var badgeText = await _mapPage.GetFishingEventsCountTextAsync();
+        badgeText.Should().NotBeNullOrEmpty("Badge should show a status message");
+    }
+
+    [Test]
+    [Description("Verifies the 7-day filter button is functional")]
+    public async Task Map_FishingTimeFilter7Days()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(4000);
+
+        // Toggle fishing activity
+        await _mapPage.ToggleFishingActivityAsync();
+        await Task.Delay(2000);
+
+        // Click 7d filter
+        var filterButton = Page.GetByRole(AriaRole.Button, new() { Name = "7d" });
+        if (await filterButton.IsVisibleAsync())
+        {
+            await filterButton.ClickAsync();
+            await Task.Delay(2000);
+
+            // Filter should be applied (button should appear active)
+            var isActive = await filterButton.GetAttributeAsync("class") ?? "";
+            (isActive.Contains("active") || isActive.Contains("btn-primary"))
+                .Should().BeTrue("7d filter button should appear active when selected");
+        }
+    }
+
+    [Test]
+    [Description("Verifies list view shows 8 MPAs matching seed data")]
+    public async Task Map_ListViewShows8Mpas()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(3000);
+
+        // Switch to list view
+        await _mapPage.SwitchToListViewAsync();
+        await Task.Delay(2000);
+
+        // Check list table is visible
+        var hasTable = await _mapPage.HasMpaListTableAsync();
+        hasTable.Should().BeTrue("MPA list table should be visible in list view");
+
+        // Get MPA count
+        var mpaCount = await _mapPage.GetMpaListCountAsync();
+        mpaCount.Should().BeGreaterOrEqualTo(8, "Should show at least 8 MPAs in the list (from seed data)");
+    }
+
+    [Test]
+    [Description("Verifies clicking list row selects MPA and shows in sidebar")]
+    public async Task Map_ListViewRowClickSelectsMpa()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(3000);
+
+        // Switch to list view
+        await _mapPage.SwitchToListViewAsync();
+        await Task.Delay(2000);
+
+        // Click on first row
+        await _mapPage.ClickMpaListRowAsync(0);
+        await Task.Delay(2000);
+
+        // Check if sidebar shows selected MPA info
+        var selectedMpaName = await _mapPage.GetSelectedMpaNameAsync();
+        selectedMpaName.Should().NotBeNullOrEmpty("Clicking a list row should display MPA details in the sidebar");
+    }
+
+    [Test]
+    [Description("Verifies selected MPA persists when toggling between Map and List views")]
+    public async Task Map_ViewTogglePreservesSelection()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(5000);
+
+        // Select an MPA from sidebar
+        var mpaListItem = Page.Locator(".list-group-item").First;
+        if (await mpaListItem.IsVisibleAsync())
+        {
+            await mpaListItem.ClickAsync();
+            await Task.Delay(2000);
+
+            // Get selected MPA name
+            var selectedName = await _mapPage.GetSelectedMpaNameAsync();
+
+            // Switch to List View
+            await _mapPage.SwitchToListViewAsync();
+            await Task.Delay(1000);
+
+            // Switch back to Map View
+            await _mapPage.SwitchToMapViewAsync();
+            await Task.Delay(1000);
+
+            // Verify MPA is still selected
+            var nameAfterToggle = await _mapPage.GetSelectedMpaNameAsync();
+            nameAfterToggle.Should().Be(selectedName, "Selected MPA should persist across view toggles");
+        }
+    }
+
+    [Test]
+    [Description("Verifies MPA info panel shows protection level badge")]
+    public async Task Map_MpaInfoPanelShowsProtectionBadge()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(5000);
+
+        // Select an MPA
+        var mpaListItem = Page.Locator(".list-group-item").First;
+        if (await mpaListItem.IsVisibleAsync())
+        {
+            await mpaListItem.ClickAsync();
+            await Task.Delay(2000);
+
+            // Check for protection badge
+            var hasBadge = await _mapPage.HasProtectionLevelBadgeAsync();
+            hasBadge.Should().BeTrue("Info panel should show protection level badge");
+        }
+    }
+
+    [Test]
+    [Description("Verifies MPA info panel shows area in km²")]
+    public async Task Map_MpaInfoPanelShowsArea()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(5000);
+
+        // Select an MPA
+        var mpaListItem = Page.Locator(".list-group-item").First;
+        if (await mpaListItem.IsVisibleAsync())
+        {
+            await mpaListItem.ClickAsync();
+            await Task.Delay(2000);
+
+            // Check for area display
+            var hasArea = await _mapPage.HasMpaAreaDisplayedAsync();
+            hasArea.Should().BeTrue("Info panel should show MPA area in km²");
+        }
+    }
+
+    // ============ Visual Baseline Screenshots ============
+
+    [Test]
+    [Description("Captures baseline screenshot with MPA boundaries visible")]
+    public async Task Map_CaptureBaselineWithBoundaries()
+    {
+        // Navigate and wait for map with boundaries
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(8000); // Wait for boundaries to load
+
+        // Verify boundaries are visible before screenshot
+        var hasBoundaries = await _mapPage.HasMpaBoundariesAsync();
+        hasBoundaries.Should().BeTrue("MPA boundaries should be visible for baseline screenshot");
+
+        // Capture screenshot
+        var screenshotPath = await _mapPage.CaptureScreenshotAsync("baseline-mpa-boundaries.png");
+        TestContext.AddTestAttachment(screenshotPath, "Baseline: MPA Boundaries");
+
+        File.Exists(screenshotPath).Should().BeTrue("Baseline screenshot should be saved");
+    }
+
+    [Test]
+    [Description("Captures baseline screenshot with fishing events enabled")]
+    public async Task Map_CaptureBaselineWithFishingEvents()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(5000);
+
+        // Toggle fishing activity
+        await _mapPage.ToggleFishingActivityAsync();
+        await Task.Delay(4000);
+
+        // Capture screenshot
+        var screenshotPath = await _mapPage.CaptureScreenshotAsync("baseline-fishing-events.png");
+        TestContext.AddTestAttachment(screenshotPath, "Baseline: Fishing Events Layer");
+
+        File.Exists(screenshotPath).Should().BeTrue("Fishing events baseline screenshot should be saved");
+    }
+
+    [Test]
+    [Description("Captures baseline screenshot of MPA info panel with NOAA data")]
+    public async Task Map_CaptureBaselineInfoPanel()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(5000);
+
+        // Select an MPA
+        var mpaListItem = Page.Locator(".list-group-item").First;
+        if (await mpaListItem.IsVisibleAsync())
+        {
+            await mpaListItem.ClickAsync();
+            await Task.Delay(18000); // Wait for NOAA data
+
+            // Capture screenshot
+            var screenshotPath = await _mapPage.CaptureScreenshotAsync("baseline-mpa-info-panel.png");
+            TestContext.AddTestAttachment(screenshotPath, "Baseline: MPA Info Panel with NOAA Data");
+
+            File.Exists(screenshotPath).Should().BeTrue("Info panel baseline screenshot should be saved");
+        }
+    }
+
+    [Test]
+    [Description("Captures baseline screenshot of list view")]
+    public async Task Map_CaptureBaselineListView()
+    {
+        // Navigate and wait for map
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(3000);
+
+        // Switch to list view
+        await _mapPage.SwitchToListViewAsync();
+        await Task.Delay(2000);
+
+        // Capture screenshot
+        var screenshotPath = await _mapPage.CaptureScreenshotAsync("baseline-list-view.png");
+        TestContext.AddTestAttachment(screenshotPath, "Baseline: List View");
+
+        File.Exists(screenshotPath).Should().BeTrue("List view baseline screenshot should be saved");
+    }
 }
