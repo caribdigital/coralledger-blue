@@ -71,6 +71,9 @@ public static class DependencyInjection
         // Register Data Export service
         services.AddScoped<IDataExportService, DataExportService>();
 
+        // Register Reef Health Calculator (spatial intelligence)
+        services.AddScoped<IReefHealthCalculator, ReefHealthCalculator>();
+
         // Register Cache service
         services.AddMemoryCache();
         services.AddSingleton<ICacheService, MemoryCacheService>();
