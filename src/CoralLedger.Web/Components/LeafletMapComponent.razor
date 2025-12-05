@@ -40,6 +40,19 @@
         </div>
     }
 
+    @if (ShowFishingEvents && _fishingEventsCount > 0)
+    {
+        <div class="fishing-events-badge">
+            <i class="bi bi-water"></i> @_fishingEventsCount fishing events
+        </div>
+    }
+    else if (ShowFishingEvents && _fishingEventsNoData)
+    {
+        <div class="fishing-events-badge no-data">
+            <i class="bi bi-info-circle"></i> No fishing events in last 30 days
+        </div>
+    }
+
     @if (ShowLegend)
     {
         <div class="map-legend">
@@ -167,6 +180,29 @@
     .mpa-count-badge i {
         margin-right: 4px;
     }
+
+    .fishing-events-badge {
+        position: absolute;
+        top: 40px;
+        left: 50px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #0d6efd;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        z-index: 999;
+    }
+
+    .fishing-events-badge.no-data {
+        color: #6c757d;
+        background: rgba(248, 249, 250, 0.95);
+    }
+
+    .fishing-events-badge i {
+        margin-right: 4px;
+    }
 </style>
 
 @code {
@@ -243,12 +279,16 @@
         {
             await JS.InvokeVoidAsync("leafletMap.removeFishingEventsLayer", _mapId);
             _fishingEventsLoaded = false;
+            _fishingEventsCount = 0;
+            _fishingEventsNoData = false;
         }
     }
 
     private bool _mpaLoadError = false;
     private string? _mpaLoadErrorMessage;
     private int _mpaCount = 0;
+    private int _fishingEventsCount = 0;
+    private bool _fishingEventsNoData = false;
 
     private async Task LoadMpaDataAsync()
     {
@@ -315,6 +355,9 @@
     {
         try
         {
+            _fishingEventsNoData = false;
+            _fishingEventsCount = 0;
+
             var start = FishingEventsStartDate ?? DateTime.UtcNow.AddDays(-30);
             var end = FishingEventsEndDate ?? DateTime.UtcNow;
 
@@ -333,7 +376,14 @@
                 {
                     await JS.InvokeVoidAsync("leafletMap.addFishingEventsLayer", _mapId, events, _dotNetRef);
                     _fishingEventsLoaded = true;
+                    _fishingEventsCount = events.Count;
                 }
+                else
+                {
+                    _fishingEventsNoData = true;
+                    _fishingEventsLoaded = true; // Mark as loaded so we don't retry
+                }
+                StateHasChanged();
             }
         }
         catch (Exception ex)

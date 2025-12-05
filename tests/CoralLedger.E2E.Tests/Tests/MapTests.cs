@@ -110,6 +110,37 @@ public class MapTests : PlaywrightFixture
     }
 
     [Test]
+    [Description("Verifies toggling fishing activity shows no-data message when no fishing events")]
+    public async Task Map_FishingToggleShowsNoDataMessage()
+    {
+        // Navigate to map page
+        await Page.GotoAsync($"{BaseUrl}/map");
+        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        await Task.Delay(4000); // Wait for map to load
+
+        // Click on fishing activity toggle
+        var fishingToggle = Page.GetByLabel("Fishing Activity");
+        if (await fishingToggle.IsVisibleAsync())
+        {
+            await fishingToggle.ClickAsync();
+            await Task.Delay(3000); // Wait for API call
+
+            // Check for either fishing events badge or no-data message
+            var fishingBadge = Page.Locator(".fishing-events-badge");
+            (await fishingBadge.IsVisibleAsync()).Should().BeTrue(
+                "Should show fishing events badge (either with count or no-data message)");
+
+            // Take screenshot
+            var screenshotPath = Path.Combine(
+                TestContext.CurrentContext.TestDirectory,
+                "playwright-artifacts",
+                "fishing-toggle-result.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(screenshotPath)!);
+            await Page.ScreenshotAsync(new() { Path = screenshotPath, FullPage = true });
+        }
+    }
+
+    [Test]
     [Description("Verifies page title is correct")]
     public async Task Map_HasCorrectPageTitle()
     {
