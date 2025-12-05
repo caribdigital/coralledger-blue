@@ -38,11 +38,12 @@ public class RedisCacheService : ICacheService
 
         try
         {
-            var value = await _cache.GetStringAsync(key, ct);
-            if (value is not null)
+            var bytes = await _cache.GetAsync(key, ct);
+            if (bytes is not null)
             {
+                var json = System.Text.Encoding.UTF8.GetString(bytes);
                 _logger.LogDebug("Cache hit for key: {Key}", key);
-                return JsonSerializer.Deserialize<T>(value, JsonOptions);
+                return JsonSerializer.Deserialize<T>(json, JsonOptions);
             }
 
             _logger.LogDebug("Cache miss for key: {Key}", key);
@@ -62,6 +63,7 @@ public class RedisCacheService : ICacheService
         try
         {
             var json = JsonSerializer.Serialize(value, JsonOptions);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(json);
 
             var options = new DistributedCacheEntryOptions();
             if (expiration.HasValue)
@@ -74,7 +76,7 @@ public class RedisCacheService : ICacheService
                 options.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
             }
 
-            await _cache.SetStringAsync(key, json, options, ct);
+            await _cache.SetAsync(key, bytes, options, ct);
             _logger.LogDebug("Cache set for key: {Key}, Expiration: {Expiration}", key, expiration);
         }
         catch (Exception ex)

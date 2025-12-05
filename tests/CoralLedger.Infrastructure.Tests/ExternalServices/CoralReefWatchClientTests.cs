@@ -19,7 +19,8 @@ public class CoralReefWatchClientTests
     public CoralReefWatchClientTests()
     {
         _loggerMock = new Mock<ILogger<CoralReefWatchClient>>();
-        _cacheMock = new Mock<ICacheService>();
+        // Use loose mock behavior to return null for unmatched calls
+        _cacheMock = new Mock<ICacheService>(MockBehavior.Loose);
         _optionsMock = new Mock<Microsoft.Extensions.Options.IOptions<RedisCacheOptions>>();
 
         // Setup default cache options
@@ -27,12 +28,6 @@ public class CoralReefWatchClientTests
         {
             NoaaBleachingCacheTtlHours = 12
         });
-
-        // Setup cache mock to always return null (cache miss) - using proper generic type
-        _cacheMock.Setup(c => c.GetAsync<object>(
-            It.IsAny<string>(),
-            It.IsAny<CancellationToken>()))
-            .ReturnsAsync((object?)null);
     }
 
     private CoralReefWatchClient CreateClient(HttpMessageHandler? handler = null)
