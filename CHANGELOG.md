@@ -7,15 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2025-12-05
+
+### Added - Sprint 3: Hardening & Spatial Excellence
+- **Sprint 3.1**: Foundation Hardening
+  - Comprehensive unit tests for Domain entities (121+ tests, 100% pass rate)
+  - SpatialValidationService implementing Dr. Thorne's 10 GIS validation gates
+  - User Secrets management for API keys (no secrets in source control)
+  - GitHub Actions CI/CD pipeline for automated testing
+
+- **Sprint 3.2**: Authoritative Data & Geometry Optimization
+  - Protected Planet WDPA integration for official MPA boundaries
+  - Multi-resolution geometry tiers (full/detail/medium/low)
+  - `?resolution=` parameter on `/api/mpas/geojson` endpoint
+  - BahamasSpatialConstants with EEZ bounding box validation
+  - ReefHealthCalculator for spatial health metrics
+  - MpaProximityService for containment/proximity analysis
+
+- **Sprint 3.3**: Spatial Query Performance & Testing
+  - UTM Zone 18N (SRID 32618) for accurate distance calculations
+  - 34 comprehensive Map E2E tests with visual fidelity validation
+  - MpaProximityService unit tests (25+ tests)
+  - Point-in-polygon query optimization
+
 ### Changed
 - Replaced Mapsui with Leaflet.js for map rendering (improved WebAssembly compatibility)
 - Map component now uses local Leaflet library instead of CDN for reliability
 - Updated Observations page to use LeafletMapComponent
 
-### Added
-- LeafletMapComponent with full MPA visualization support
-- JavaScript interop for Leaflet map controls
-- Local Leaflet.js library (v1.9.4) in wwwroot/lib
+### Documentation
+- Added DEVELOPER.md for developer onboarding
+- Updated .gitignore with Playwright, logs, and coverage patterns
+- Documented potential improvement: Redis caching (US-3.3.5)
 
 ## [0.9.0] - 2024-12-04
 

@@ -77,3 +77,33 @@ aspire-manifest.json
 # Application secrets
 appsettings.Development.json
 secrets.json
+
+# Playwright
+.playwright/
+playwright-artifacts/
+playwright-report/
+test-results/
+
+# Logs
+logs/
+*.log
+
+# Aspire orchestration
+.aspire/
+aspire-manifest.json
+
+# JetBrains Rider
+*.sln.iml
+
+# Coverage reports
+coverage/
+*.coverage
+*.coveragexml
+lcov.info
+
+# Node (if using npm for Playwright)
+node_modules/
+package-lock.json
+
+# Potential improvements for future sprints
+# TODO: Redis caching (US-3.3.5) - currently using MemoryCache
