@@ -1,0 +1,25 @@
+:root {
+    --space-1: 0.5rem;
+    --space-2: 1rem;
+    --space-3: 1.5rem;
+    --space-4: 2rem;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.split {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.card {
+    padding: var(--space-3);
+    border-radius: var(--radius-base);
+    background: var(--color-surface-alt);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-soft);
+}
