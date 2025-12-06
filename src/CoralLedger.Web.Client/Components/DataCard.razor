@@ -1,0 +1,98 @@
+<div class="data-card" role="group" aria-label="@AriaLabel">
+    <div class="data-card-icon" aria-hidden="true">
+        @if (IconTemplate is not null)
+        {
+            @IconTemplate
+        }
+        else if (!string.IsNullOrWhiteSpace(Icon))
+        {
+            <i class="@Icon"></i>
+        }
+    </div>
+
+    <div class="data-card-body">
+        <div class="data-card-label">@Label</div>
+
+        <div class="data-card-value">
+            @if (IsLoading)
+            {
+                <span class="value-skeleton"></span>
+                <span class="sr-only">Loading @Label</span>
+            }
+            else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+            {
+                <span class="value-error">@ErrorMessage</span>
+            }
+            else
+            {
+                <span class="value-text">@Value</span>
+                @if (!string.IsNullOrWhiteSpace(Unit))
+                {
+                    <span class="value-unit">@Unit</span>
+                }
+            }
+        </div>
+
+        @if (HasTrend)
+        {
+            <div class="data-card-trend @TrendCssClass" aria-live="polite">
+                <span class="trend-icon" aria-hidden="true">@TrendIcon</span>
+                <span class="trend-copy">@TrendLabelText</span>
+                @if (!string.IsNullOrWhiteSpace(TrendValue))
+                {
+                    <span class="trend-value">@TrendValue</span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = default!;
+    [Parameter] public string Value { get; set; } = "—";
+    [Parameter] public string? Unit { get; set; }
+    [Parameter] public TrendDirection Trend { get; set; }
+    [Parameter] public string? TrendValue { get; set; }
+    [Parameter] public string? TrendLabel { get; set; }
+    [Parameter] public string? Icon { get; set; } = "bi bi-bar-chart-line";
+    [Parameter] public RenderFragment? IconTemplate { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public string? AriaLabelOverride { get; set; }
+
+    private bool HasTrend =>
+        !IsLoading &&
+        string.IsNullOrWhiteSpace(ErrorMessage) &&
+        Trend != TrendDirection.Neutral;
+
+    private string TrendLabelText =>
+        !string.IsNullOrWhiteSpace(TrendLabel)
+            ? TrendLabel
+            : Trend switch
+            {
+                TrendDirection.Up => "Trending up",
+                TrendDirection.Down => "Trending down",
+                _ => "Stable"
+            };
+
+    private string TrendIcon =>
+        Trend switch
+        {
+            TrendDirection.Up => "▲",
+            TrendDirection.Down => "▼",
+            _ => "▬"
+        };
+
+    private string TrendCssClass =>
+        Trend switch
+        {
+            TrendDirection.Up => "trend-up",
+            TrendDirection.Down => "trend-down",
+            _ => "trend-neutral"
+        };
+
+    private string AriaLabel =>
+        string.IsNullOrWhiteSpace(AriaLabelOverride)
+            ? Label
+            : AriaLabelOverride;
+}

@@ -12,42 +12,37 @@
 
     <div class="admin-content">
         <!-- Stats Cards -->
-        <div class="stats-row">
-            <div class="stat-card">
-                <div class="stat-icon mpa"><i class="bi bi-shield-check"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">@_stats.Mpas</div>
-                    <div class="stat-label">Marine Protected Areas</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon reef"><i class="bi bi-water"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">@_stats.Reefs</div>
-                    <div class="stat-label">Monitored Reefs</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon vessel"><i class="bi bi-cursor-fill"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">@_stats.Vessels</div>
-                    <div class="stat-label">Tracked Vessels</div>
-                </div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon observation"><i class="bi bi-eye-fill"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">@_stats.Observations</div>
-                    <div class="stat-label">Citizen Observations</div>
-                </div>
-            </div>
-            <div class="stat-card alert">
-                <div class="stat-icon alert"><i class="bi bi-bell-fill"></i></div>
-                <div class="stat-info">
-                    <div class="stat-value">@_stats.ActiveAlerts</div>
-                    <div class="stat-label">Active Alerts</div>
-                </div>
-            </div>
+        <div class="stats-grid" role="list">
+            <DataCard Label="Marine Protected Areas"
+                      Value="@_stats.Mpas.ToString("N0")"
+                      Unit="MPAs"
+                      Icon="bi bi-shield-check"
+                      IsLoading="@_isLoading"
+                      AriaLabelOverride="Total Marine Protected Areas" />
+            <DataCard Label="Monitored Reefs"
+                      Value="@_stats.Reefs.ToString("N0")"
+                      Unit="Reefs"
+                      Icon="bi bi-water"
+                      IsLoading="@_isLoading"
+                      AriaLabelOverride="Monitored reefs" />
+            <DataCard Label="Tracked Vessels"
+                      Value="@_stats.Vessels.ToString("N0")"
+                      Unit="Vessels"
+                      Icon="bi bi-geo-alt"
+                      IsLoading="@_isLoading"
+                      AriaLabelOverride="Tracked vessels" />
+            <DataCard Label="Citizen Observations"
+                      Value="@_stats.Observations.ToString("N0")"
+                      Unit="Submissions"
+                      Icon="bi bi-eye-fill"
+                      IsLoading="@_isLoading"
+                      AriaLabelOverride="Citizen observations" />
+            <DataCard Label="Active Alerts"
+                      Value="@_stats.ActiveAlerts.ToString("N0")"
+                      Unit="Alerts"
+                      Icon="bi bi-bell-fill"
+                      IsLoading="@_isLoading"
+                      AriaLabelOverride="Active alerts" />
         </div>
 
         <!-- Recent Activity -->
@@ -182,9 +177,10 @@
 
 <style>
     .admin-dashboard {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        background: var(--color-surface-alt);
+        border-radius: var(--radius-base);
+        border: 1px solid var(--color-border);
+        box-shadow: var(--shadow-elevated);
         overflow: hidden;
     }
 
@@ -192,9 +188,9 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 16px 20px;
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        color: white;
+        padding: 20px;
+        background: linear-gradient(135deg, rgba(22, 33, 62, 1) 0%, rgba(12, 19, 51, 1) 100%);
+        color: var(--color-text);
     }
 
     .admin-header h4 {
@@ -202,143 +198,156 @@
         display: flex;
         align-items: center;
         gap: 10px;
+        font-weight: 600;
     }
 
     .admin-content {
-        padding: 20px;
+        padding: 22px;
     }
 
-    .stats-row {
+    .stats-grid {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 16px;
-        margin-bottom: 24px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
     }
 
-    .stat-card {
+    .activity-section,
+    .moderation-section,
+    .system-section,
+    .export-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .activity-section h5,
+    .moderation-section h5,
+    .system-section h5,
+    .export-section h5 {
+        margin-bottom: 0.75rem;
+        color: var(--color-text-muted);
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 16px;
-        background: #f8f9fa;
-        border-radius: 8px;
-    }
-
-    .stat-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-    }
-
-    .stat-icon.mpa { background: #d4edda; color: #155724; }
-    .stat-icon.reef { background: #cce5ff; color: #004085; }
-    .stat-icon.vessel { background: #e2e3e5; color: #383d41; }
-    .stat-icon.observation { background: #fff3cd; color: #856404; }
-    .stat-icon.alert { background: #f8d7da; color: #721c24; }
-
-    .stat-value { font-size: 24px; font-weight: 600; }
-    .stat-label { font-size: 12px; color: #6c757d; }
-
-    .activity-section, .moderation-section, .system-section, .export-section {
-        margin-bottom: 24px;
-    }
-
-    .activity-section h5, .moderation-section h5, .system-section h5, .export-section h5 {
-        margin-bottom: 12px;
-        color: #495057;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        gap: 0.5rem;
+        font-weight: 600;
     }
 
     .activity-cards {
-        display: flex;
-        gap: 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.75rem;
     }
 
     .activity-card {
-        padding: 16px 24px;
-        background: #f8f9fa;
-        border-radius: 8px;
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid var(--color-border);
+        background: rgba(255, 255, 255, 0.03);
         text-align: center;
     }
 
-    .activity-card.pending { background: #fff3cd; }
-    .activity-value { display: block; font-size: 28px; font-weight: 600; }
-    .activity-label { font-size: 13px; color: #6c757d; }
+    .activity-card.pending {
+        background: rgba(247, 197, 73, 0.12);
+    }
+
+    .activity-value {
+        display: block;
+        font-size: 2rem;
+        font-weight: 600;
+    }
+
+    .activity-label {
+        font-size: 0.85rem;
+        color: var(--color-text-muted);
+    }
+
+    .moderation-section {
+        border-top: 1px solid var(--color-border);
+        padding-top: 1rem;
+    }
 
     .observation-list {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 16px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1rem;
     }
 
     .observation-card {
-        padding: 16px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        border-left: 3px solid #ffc107;
-    }
-
-    .observation-header {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 8px;
-    }
-
-    .observation-type {
-        font-size: 11px;
-        text-transform: uppercase;
-        font-weight: 600;
-        color: #6c757d;
-    }
-
-    .observation-severity {
-        font-size: 11px;
-        padding: 2px 8px;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.02);
         border-radius: 10px;
+        border: 1px solid var(--color-border);
     }
 
-    .observation-severity.severity-1, .observation-severity.severity-2 { background: #f8d7da; color: #721c24; }
-    .observation-severity.severity-3 { background: #fff3cd; color: #856404; }
-    .observation-severity.severity-4, .observation-severity.severity-5 { background: #d4edda; color: #155724; }
+    .observation-card h6 {
+        margin: 0 0 0.4rem 0;
+        font-weight: 600;
+    }
 
-    .observation-card h6 { margin: 0 0 8px 0; }
-    .observation-desc { font-size: 13px; color: #6c757d; margin-bottom: 8px; }
-    .observation-meta { font-size: 12px; color: #6c757d; display: flex; gap: 12px; margin-bottom: 12px; }
-    .observation-actions { display: flex; gap: 8px; }
+    .observation-desc {
+        font-size: 0.95rem;
+        color: var(--color-text-muted);
+        margin-bottom: 0.75rem;
+    }
+
+    .observation-meta {
+        font-size: 0.85rem;
+        color: var(--color-text-muted);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .observation-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
 
     .system-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.8rem;
     }
 
     .system-item {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 12px 16px;
-        background: #f8f9fa;
-        border-radius: 8px;
-        border-left: 3px solid #6c757d;
+        gap: 0.65rem;
+        padding: 0.85rem 1rem;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--color-border);
+        font-size: 0.9rem;
+        color: var(--color-text);
     }
 
-    .system-item.healthy { border-left-color: #28a745; }
-    .system-item.unhealthy { border-left-color: #dc3545; }
-    .system-item.disabled { border-left-color: #ffc107; }
+    .system-item i {
+        font-size: 1.1rem;
+    }
 
-    .system-item i { font-size: 18px; }
-    .system-item .status { margin-left: auto; font-size: 12px; font-weight: 500; }
+    .system-item .status {
+        margin-left: auto;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .system-item.healthy .status {
+        color: var(--color-success);
+    }
+
+    .system-item.unhealthy .status {
+        color: var(--color-error);
+    }
+
+    .system-item.disabled .status {
+        color: var(--color-warning);
+    }
 
     .export-buttons {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: 0.65rem;
     }
 
     .modal-backdrop {
@@ -347,7 +356,7 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.5);
+        background: rgba(0, 0, 0, 0.6);
         z-index: 1000;
     }
 
@@ -357,33 +366,54 @@
         left: 50%;
         transform: translate(-50%, -50%);
         z-index: 1001;
-        width: 400px;
+        width: 320px;
     }
 
     .modal-content {
-        background: white;
-        border-radius: 8px;
-        overflow: hidden;
+        background: var(--color-surface-alt);
+        border-radius: 12px;
+        border: 1px solid var(--color-border);
+        color: var(--color-text);
+    }
+
+    .modal-header,
+    .modal-footer {
+        padding: 1rem;
     }
 
     .modal-header {
+        border-bottom: 1px solid var(--color-border);
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 16px;
-        border-bottom: 1px solid #dee2e6;
+        justify-content: space-between;
     }
 
-    .modal-body { padding: 16px; }
-    .modal-footer { padding: 16px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #dee2e6; }
+    .modal-body {
+        padding: 1rem;
+    }
 
-    .spin { animation: spin 1s linear infinite; }
-    @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .spin {
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
 
     @@media (max-width: 992px) {
-        .stats-row { grid-template-columns: repeat(3, 1fr); }
-        .observation-list { grid-template-columns: 1fr; }
-        .system-grid { grid-template-columns: repeat(2, 1fr); }
+        .activity-cards {
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        }
+
+        .observation-list {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
