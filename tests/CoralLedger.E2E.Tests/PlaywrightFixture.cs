@@ -71,7 +71,10 @@ public class PlaywrightFixture : PageTest
 
     protected async Task NavigateToAsync(string path)
     {
-        await Page.GotoAsync($"{BaseUrl}{path}");
+        await Page.GotoAsync($"{BaseUrl}{path}", new()
+        {
+            WaitUntil = WaitUntilState.NetworkIdle
+        });
         await WaitForBlazorAsync();
     }
 
