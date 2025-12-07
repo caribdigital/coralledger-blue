@@ -1,0 +1,59 @@
+@using Microsoft.JSInterop
+@inject IJSRuntime JsRuntime
+
+<div class="connection-status" role="status" aria-live="polite">
+    <span class="status-dot @(IsOnline ? "online" : "offline")" aria-hidden="true"></span>
+    <div class="status-copy">
+        <strong>@StatusText</strong>
+        <small>@(IsSyncing ? "Syncing..." : PendingCopy)</small>
+    </div>
+    <button class="btn btn-sm btn-outline-light" type="button" @onclick="TriggerSync" disabled="@(!IsOnline || IsSyncing)">
+        <i class="bi bi-arrow-repeat"></i>
+        Sync now
+    </button>
+</div>
+
+@code {
+    [Parameter] public int PendingCount { get; set; }
+    [Parameter] public bool IsSyncing { get; set; }
+    [Parameter] public EventCallback OnManualSync { get; set; }
+
+    private bool IsOnline { get; set; } = true;
+    private DotNetObjectReference<ConnectionStatus>? _objRef;
+
+    private string StatusText => IsOnline ? "Online" : "Offline";
+    private string PendingCopy => PendingCount > 0 ? $"{PendingCount} pending actions" : "All caught up";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _objRef = DotNetObjectReference.Create(this);
+            await JsRuntime.InvokeVoidAsync("registerOnlineStatusHandler", _objRef);
+        }
+    }
+
+    [JSInvokable]
+    public void UpdateOnlineStatus(bool isOnline)
+    {
+        IsOnline = isOnline;
+        StateHasChanged();
+    }
+
+    private async Task TriggerSync()
+    {
+        if (OnManualSync.HasDelegate)
+        {
+            await OnManualSync.InvokeAsync(null);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_objRef != null)
+        {
+            await JsRuntime.InvokeVoidAsync("unregisterOnlineStatusHandler");
+            _objRef.Dispose();
+        }
+    }
+}
