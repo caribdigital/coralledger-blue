@@ -3,7 +3,9 @@
 @using NetTopologySuite.IO
 @using Mapsui.Extensions
 @using Mapsui.Styles
+@using Microsoft.JSInterop
 @inject HttpClient Http
+@inject IJSRuntime JsRuntime
 
 <div class="mpa-map-container" style="height: calc(100vh - 200px); min-height: 500px; width: 100%; position: relative;">
     @if (_loading)
@@ -25,52 +27,23 @@
         <MapControl @ref="_mapControl" Map="_map" />
     }
 
+    <MapControlPanel MpasLayerVisible="@_mpasLayerVisible"
+                     FishingEventsVisible="@_fishingLayerVisible"
+                     AlertsVisible="@_alertsLayerVisible"
+                     MpasLayerVisibleChanged="HandleMpasLayerChanged"
+                     FishingEventsVisibleChanged="HandleFishingLayerChanged"
+                     AlertsVisibleChanged="HandleAlertsLayerChanged"
+                     OnLocate="HandleLocateAsync"
+                     OnResetView="HandleResetViewAsync"
+                     OnFullscreen="HandleFullscreenAsync" />
+
     @if (_showLegend)
     {
-        <div class="map-legend">
-            <h6>Protection Levels</h6>
-            <div class="legend-item">
-                <span class="legend-color" style="background-color: #dc3545;"></span>
-                <span>No-Take Zone</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-color" style="background-color: #fd7e14;"></span>
-                <span>Highly Protected</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-color" style="background-color: #0dcaf0;"></span>
-                <span>Lightly Protected</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-color" style="background-color: #6c757d;"></span>
-                <span>Minimal Protection</span>
-            </div>
-            @if (ShowFishingEvents)
-            {
-                <hr class="my-2" />
-                <h6>Fishing Activity</h6>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background-color: #dc3545;"></span>
-                    <span>Last 7 days</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background-color: #fd7e14;"></span>
-                    <span>7-14 days ago</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background-color: #ffc107;"></span>
-                    <span>14-30 days ago</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background-color: #6c757d;"></span>
-                    <span>Older</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot legend-mpa-violation" style="background-color: #dc3545; border: 3px solid #ff0000;"></span>
-                    <span>Inside MPA</span>
-                </div>
-            }
-        </div>
+        <MapLegend LegendTitle="Protection Levels"
+                   LegendDescription="Bahamas Marine Protected Areas"
+                   Items="_protectionLegend"
+                   SecondaryTitle="Fishing activity"
+                   SecondaryItems="_fishingLayerVisible ? _fishingLegend : null" />
     }
 
     @if (!string.IsNullOrEmpty(_selectedMpaName))
@@ -122,48 +95,6 @@
         justify-content: center;
         align-items: center;
         z-index: 1000;
-    }
-
-    .map-legend {
-        position: absolute;
-        bottom: 20px;
-        right: 20px;
-        background: white;
-        padding: 12px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        z-index: 999;
-    }
-
-    .map-legend h6 {
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: #333;
-    }
-
-    .legend-item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 4px;
-        font-size: 0.85rem;
-    }
-
-    .legend-color {
-        width: 16px;
-        height: 16px;
-        border-radius: 3px;
-        margin-right: 8px;
-        border: 1px solid rgba(0,0,0,0.2);
-    }
-
-    .legend-dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 8px;
-        border: 2px solid white;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
     }
 
     .fishing-event-popup {
@@ -232,6 +163,29 @@
     private List<FishingEventDto> _fishingEvents = new();
     private bool _fishingEventsLoaded = false;
 
+    private bool _mpasLayerVisible = true;
+    private bool _fishingLayerVisible = false;
+    private bool _alertsLayerVisible = true;
+    private MPoint? _bahamasCenter;
+    private double _initialResolution;
+
+    private static readonly MapLegendItem[] _protectionLegend =
+    {
+        new("No-Take Zone", "#dc3545"),
+        new("Highly Protected", "#fd7e14"),
+        new("Lightly Protected", "#0dcaf0"),
+        new("Minimal Protection", "#6c757d")
+    };
+
+    private static readonly MapLegendItem[] _fishingLegend =
+    {
+        new("Last 7 days", "#dc3545", UseDot: true),
+        new("7-14 days ago", "#fd7e14", UseDot: true),
+        new("14-30 days ago", "#ffc107", UseDot: true),
+        new("Older", "#6c757d", UseDot: true),
+        new("Inside MPA", "#dc3545", UseDot: true)
+    };
+
     private string? _errorMessage;
 
     protected override async Task OnInitializedAsync()
@@ -239,6 +193,7 @@
         try
         {
             _showLegend = ShowLegend;
+            _fishingLayerVisible = ShowFishingEvents;
             InitializeMap();
             await LoadMpaDataAsync();
             _loading = false;
@@ -261,16 +216,81 @@
         }
 
         // Handle fishing events layer toggle
-        if (ShowFishingEvents && !_fishingEventsLoaded)
+        if (ShowFishingEvents && !_fishingLayerVisible)
         {
-            await LoadFishingEventsAsync();
+            await HandleFishingLayerChanged(true);
         }
-        else if (!ShowFishingEvents && _fishingEventsLayer != null)
+        else if (!ShowFishingEvents && _fishingLayerVisible)
+        {
+            await HandleFishingLayerChanged(false);
+        }
+    }
+
+    private Task HandleMpasLayerChanged(bool visible)
+    {
+        _mpasLayerVisible = visible;
+        if (_mpaLayer is not null)
+        {
+            _mpaLayer.Enabled = visible;
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleFishingLayerChanged(bool visible)
+    {
+        _fishingLayerVisible = visible;
+
+        if (visible)
+        {
+            if (_fishingEventsLoaded && _fishingEventsLayer is not null && !_map.Layers.Contains(_fishingEventsLayer))
+            {
+                _map.Layers.Add(_fishingEventsLayer);
+            }
+            else if (!_fishingEventsLoaded)
+            {
+                await LoadFishingEventsAsync();
+            }
+        }
+        else if (_fishingEventsLayer is not null)
         {
             _map.Layers.Remove(_fishingEventsLayer);
-            _fishingEventsLayer = null;
-            _fishingEventsLoaded = false;
             _selectedFishingEvent = null;
+        }
+    }
+
+    private Task HandleAlertsLayerChanged(bool visible)
+    {
+        _alertsLayerVisible = visible;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleLocateAsync()
+    {
+        if (_bahamasCenter is not null)
+        {
+            _map.Navigator.CenterOn(_bahamasCenter);
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task HandleResetViewAsync()
+    {
+        if (_bahamasCenter is not null)
+        {
+            _map.Navigator.CenterOnAndZoomTo(_bahamasCenter, _initialResolution);
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleFullscreenAsync()
+    {
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("document.documentElement.requestFullscreen");
+        }
+        catch (JSException)
+        {
+            Console.WriteLine("Fullscreen request blocked.");
         }
     }
 
@@ -281,10 +301,11 @@
 
         // Center on Bahamas (longitude -77.5, latitude 24.5)
         var (x, y) = SphericalMercator.FromLonLat(-77.5, 24.5);
-        var bahamasCenter = new MPoint(x, y);
+        _bahamasCenter = new MPoint(x, y);
+        _initialResolution = _map.Navigator.Resolutions[7];
 
         // Set initial viewport
-        _map.Navigator.CenterOnAndZoomTo(bahamasCenter, _map.Navigator.Resolutions[7]);
+        _map.Navigator.CenterOnAndZoomTo(_bahamasCenter, _initialResolution);
 
         // Configure navigator
         _map.Navigator.RotationLock = true;
@@ -299,7 +320,7 @@
         _selectedFishingEvent = null;
 
         // Check fishing events layer first (it's on top)
-        if (_fishingEventsLayer != null && ShowFishingEvents)
+        if (_fishingEventsLayer != null && _fishingLayerVisible)
         {
             var fishingInfo = e.GetMapInfo(new[] { _fishingEventsLayer });
             if (fishingInfo?.Feature != null)

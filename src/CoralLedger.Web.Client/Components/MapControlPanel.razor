@@ -1,0 +1,63 @@
+@namespace CoralLedger.Web.Client.Components
+
+<div class="map-control-panel" role="region" aria-label="Map controls">
+    <h6>Controls</h6>
+
+    <div class="control-group">
+        <label class="control-toggle">
+            <input type="checkbox" checked="@MpasLayerVisible" @onchange="OnMpasLayerChanged" />
+            <span>Marine Protected Areas</span>
+        </label>
+        <label class="control-toggle">
+            <input type="checkbox" checked="@FishingEventsVisible" @onchange="OnFishingLayerChanged" />
+            <span>Fishing Activity</span>
+        </label>
+        <label class="control-toggle">
+            <input type="checkbox" checked="@AlertsVisible" @onchange="OnAlertsLayerChanged" />
+            <span>Active Alerts</span>
+        </label>
+    </div>
+
+    <div class="control-actions">
+        <button class="btn btn-sm btn-outline-light" type="button" @onclick="OnLocateRequested">
+            <i class="bi bi-geo-alt-fill"></i>
+            Locate Me
+        </button>
+        <button class="btn btn-sm btn-outline-light" type="button" @onclick="OnResetRequested">
+            <i class="bi bi-arrows-angle-contract"></i>
+            Reset View
+        </button>
+        <button class="btn btn-sm btn-outline-light" type="button" @onclick="OnFullscreenRequested">
+            <i class="bi bi-fullscreen"></i>
+            Fullscreen
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool MpasLayerVisible { get; set; }
+    [Parameter] public EventCallback<bool> MpasLayerVisibleChanged { get; set; }
+
+    [Parameter] public bool FishingEventsVisible { get; set; }
+    [Parameter] public EventCallback<bool> FishingEventsVisibleChanged { get; set; }
+
+    [Parameter] public bool AlertsVisible { get; set; }
+    [Parameter] public EventCallback<bool> AlertsVisibleChanged { get; set; }
+
+    [Parameter] public EventCallback OnLocate { get; set; }
+    [Parameter] public EventCallback OnResetView { get; set; }
+    [Parameter] public EventCallback OnFullscreen { get; set; }
+
+    private Task OnMpasLayerChanged(ChangeEventArgs args)
+        => MpasLayerVisibleChanged.InvokeAsync(args.Value is bool b && b);
+
+    private Task OnFishingLayerChanged(ChangeEventArgs args)
+        => FishingEventsVisibleChanged.InvokeAsync(args.Value is bool b && b);
+
+    private Task OnAlertsLayerChanged(ChangeEventArgs args)
+        => AlertsVisibleChanged.InvokeAsync(args.Value is bool b && b);
+
+    private Task OnLocateRequested() => OnLocate.InvokeAsync(null);
+    private Task OnResetRequested() => OnResetView.InvokeAsync(null);
+    private Task OnFullscreenRequested() => OnFullscreen.InvokeAsync(null);
+}
