@@ -13,4 +13,11 @@
     <ProjectReference Include="..\CoralLedger.Web\CoralLedger.Web.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\CoralLedger.Infrastructure\ExternalServices\data\mock-bleaching-data.json">
+      <Link>data\mock-bleaching-data.json</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
