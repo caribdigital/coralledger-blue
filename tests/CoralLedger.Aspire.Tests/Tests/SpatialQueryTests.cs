@@ -217,6 +217,7 @@ public class SpatialQueryTests
 
     [Theory]
     [InlineData("full")]
+    [InlineData("detail")]
     [InlineData("medium")]
     [InlineData("low")]
     public async Task GetMpasGeoJson_DifferentResolutions_ReturnsValidGeoJson(string resolution)

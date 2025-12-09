@@ -10,6 +10,7 @@ public class MarineProtectedArea : BaseEntity, IAggregateRoot, IAuditableEntity
     public string? LocalName { get; private set; }
     public string? WdpaId { get; private set; }  // World Database on Protected Areas ID
     public Geometry Boundary { get; private set; } = null!;  // Polygon/MultiPolygon
+    public Geometry? BoundarySimplifiedDetail { get; private set; }  // ~0.0001° tolerance (~10m)
     public Geometry? BoundarySimplifiedMedium { get; private set; }  // ~0.001° tolerance (~100m)
     public Geometry? BoundarySimplifiedLow { get; private set; }     // ~0.01° tolerance (~1km)
     public Point Centroid { get; private set; } = null!;
@@ -93,12 +94,15 @@ public class MarineProtectedArea : BaseEntity, IAggregateRoot, IAuditableEntity
     }
 
     /// <summary>
-    /// Set pre-computed simplified geometry versions for map performance
+    /// Set pre-computed simplified geometry versions for map performance.
+    /// 4-tier system: Full (original) -> Detail -> Medium -> Low
     /// </summary>
+    /// <param name="detail">Simplified with ~0.0001° tolerance (~10m at 25°N)</param>
     /// <param name="medium">Simplified with ~0.001° tolerance (~100m at 25°N)</param>
     /// <param name="low">Simplified with ~0.01° tolerance (~1km at 25°N)</param>
-    public void SetSimplifiedBoundaries(Geometry? medium, Geometry? low)
+    public void SetSimplifiedBoundaries(Geometry? detail, Geometry? medium, Geometry? low)
     {
+        BoundarySimplifiedDetail = detail;
         BoundarySimplifiedMedium = medium;
         BoundarySimplifiedLow = low;
         ModifiedAt = DateTime.UtcNow;

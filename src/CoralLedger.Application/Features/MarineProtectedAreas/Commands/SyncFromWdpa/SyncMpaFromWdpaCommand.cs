@@ -125,18 +125,21 @@ public class SyncMpaFromWdpaCommandHandler : IRequestHandler<SyncMpaFromWdpaComm
         try
         {
             // Use PostGIS ST_SimplifyPreserveTopology to generate simplified versions
-            // Medium: 0.001° tolerance (~100m at 25°N latitude)
-            // Low: 0.01° tolerance (~1km at 25°N latitude)
+            // 4-tier system for different zoom levels and use cases:
+            // Detail: 0.0001° tolerance (~10m at 25°N latitude) - close zoom, boundary inspection
+            // Medium: 0.001° tolerance (~100m at 25°N latitude) - default map view
+            // Low: 0.01° tolerance (~1km at 25°N latitude) - overview maps
             var sql = @"
                 UPDATE marine_protected_areas
                 SET
+                    ""BoundarySimplifiedDetail"" = ST_SimplifyPreserveTopology(""Boundary"", 0.0001),
                     ""BoundarySimplifiedMedium"" = ST_SimplifyPreserveTopology(""Boundary"", 0.001),
                     ""BoundarySimplifiedLow"" = ST_SimplifyPreserveTopology(""Boundary"", 0.01)
                 WHERE ""Id"" = {0}";
 
             await _context.Database.ExecuteSqlRawAsync(sql, [mpaId], cancellationToken);
 
-            _logger.LogDebug("Generated simplified geometries for MPA {MpaId}", mpaId);
+            _logger.LogDebug("Generated simplified geometries (detail/medium/low) for MPA {MpaId}", mpaId);
         }
         catch (Exception ex)
         {

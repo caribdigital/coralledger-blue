@@ -293,13 +293,15 @@ public class MarineProtectedAreaTests
             ProtectionLevel.NoTake,
             IslandGroup.Exumas);
 
+        var detailSimplified = CreateTestPolygon(size: 0.09);
         var mediumSimplified = CreateTestPolygon(size: 0.08);
         var lowSimplified = CreateTestPolygon(size: 0.05);
 
         // Act
-        mpa.SetSimplifiedBoundaries(mediumSimplified, lowSimplified);
+        mpa.SetSimplifiedBoundaries(detailSimplified, mediumSimplified, lowSimplified);
 
         // Assert
+        mpa.BoundarySimplifiedDetail.Should().Be(detailSimplified);
         mpa.BoundarySimplifiedMedium.Should().Be(mediumSimplified);
         mpa.BoundarySimplifiedLow.Should().Be(lowSimplified);
         mpa.ModifiedAt.Should().NotBeNull();
@@ -318,9 +320,10 @@ public class MarineProtectedAreaTests
             IslandGroup.Exumas);
 
         // Act
-        mpa.SetSimplifiedBoundaries(null, null);
+        mpa.SetSimplifiedBoundaries(null, null, null);
 
         // Assert
+        mpa.BoundarySimplifiedDetail.Should().BeNull();
         mpa.BoundarySimplifiedMedium.Should().BeNull();
         mpa.BoundarySimplifiedLow.Should().BeNull();
         mpa.ModifiedAt.Should().NotBeNull();

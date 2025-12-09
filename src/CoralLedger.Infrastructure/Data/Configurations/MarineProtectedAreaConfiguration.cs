@@ -27,6 +27,10 @@ public class MarineProtectedAreaConfiguration : IEntityTypeConfiguration<MarineP
             .HasColumnType("geometry(Geometry, 4326)")
             .IsRequired();
 
+        // 4-tier geometry simplification for map performance
+        builder.Property(e => e.BoundarySimplifiedDetail)
+            .HasColumnType("geometry(Geometry, 4326)");
+
         builder.Property(e => e.BoundarySimplifiedMedium)
             .HasColumnType("geometry(Geometry, 4326)");
 

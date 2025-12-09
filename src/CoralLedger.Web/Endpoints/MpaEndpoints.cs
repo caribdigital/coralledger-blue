@@ -39,7 +39,8 @@ public static class MpaEndpoints
         })
         .WithName("GetMpasGeoJson")
         .WithDescription("Get all Marine Protected Areas as GeoJSON FeatureCollection for map display. " +
-            "Use ?resolution=full|medium|low to control geometry simplification (default: medium)")
+            "Use ?resolution=full|detail|medium|low to control geometry simplification (default: medium). " +
+            "Tolerances: full=0, detail=~10m, medium=~100m, low=~1km")
         .Produces<MpaGeoJsonCollection>();
 
         // GET /api/mpas/{id} - Get specific MPA by ID
@@ -191,6 +192,7 @@ public static class MpaEndpoints
         resolution?.ToLowerInvariant() switch
         {
             "full" => GeometryResolution.Full,
+            "detail" => GeometryResolution.Detail,
             "low" => GeometryResolution.Low,
             _ => GeometryResolution.Medium // Default
         };

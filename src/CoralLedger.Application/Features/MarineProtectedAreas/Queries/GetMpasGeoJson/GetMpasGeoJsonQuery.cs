@@ -116,10 +116,11 @@ public class GetMpasGeoJsonQueryHandler : IRequestHandler<GetMpasGeoJsonQuery, M
 
         foreach (var mpa in mpas)
         {
-            // Select appropriate geometry based on requested resolution
+            // Select appropriate geometry based on requested resolution (4-tier system)
             var geometry = request.Resolution switch
             {
                 GeometryResolution.Full => mpa.Boundary,
+                GeometryResolution.Detail => mpa.BoundarySimplifiedDetail ?? mpa.Boundary,
                 GeometryResolution.Low => mpa.BoundarySimplifiedLow ?? mpa.Boundary,
                 _ => mpa.BoundarySimplifiedMedium ?? mpa.Boundary // Medium is default
             };
