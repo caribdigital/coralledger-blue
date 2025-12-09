@@ -22,6 +22,7 @@ public class MpaProximityServiceTests : IDisposable
     private readonly MarineDbContext _context;
     private readonly Mock<ILogger<MpaProximityService>> _loggerMock;
     private readonly Mock<ICacheService> _cacheMock;
+    private readonly Mock<ISpatialCalculator> _spatialCalculatorMock;
     private readonly MpaProximityService _service;
     private readonly GeometryFactory _geometryFactory;
 
@@ -43,13 +44,32 @@ public class MpaProximityServiceTests : IDisposable
         _context = new MarineDbContext(options);
         _loggerMock = new Mock<ILogger<MpaProximityService>>();
         _cacheMock = new Mock<ICacheService>();
+        _spatialCalculatorMock = new Mock<ISpatialCalculator>();
         _geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
 
         // Setup cache mock to return null (no cached data)
         _cacheMock.Setup(c => c.GetAsync<MpaContext>(It.IsAny<string>()))
             .ReturnsAsync((MpaContext?)null);
 
-        _service = new MpaProximityService(_context, _loggerMock.Object, _cacheMock.Object);
+        // Setup spatial calculator mock - use simple degree-based approximation for testing
+        _spatialCalculatorMock.Setup(s => s.CalculateDistanceKm(It.IsAny<Point>(), It.IsAny<Point>()))
+            .Returns((Point p1, Point p2) =>
+            {
+                // Simple Euclidean approximation for testing (1 degree ≈ 111km at Bahamas latitude)
+                var dx = (p2.X - p1.X) * 100.0; // km (longitude)
+                var dy = (p2.Y - p1.Y) * 111.0; // km (latitude)
+                return Math.Sqrt(dx * dx + dy * dy);
+            });
+
+        _spatialCalculatorMock.Setup(s => s.CalculateDistanceToGeometryKm(It.IsAny<Point>(), It.IsAny<Geometry>()))
+            .Returns((Point point, Geometry geom) =>
+            {
+                if (geom.Contains(point)) return 0.0;
+                // Simple approximation using NTS distance converted to km
+                return point.Distance(geom) * 111.0;
+            });
+
+        _service = new MpaProximityService(_context, _loggerMock.Object, _cacheMock.Object, _spatialCalculatorMock.Object);
 
         // Seed test data
         SeedTestData();

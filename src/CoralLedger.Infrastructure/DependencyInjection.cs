@@ -21,6 +21,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IDateTimeService, DateTimeService>();
         services.AddSingleton<ISpatialValidationService, SpatialValidationService>();
+        services.AddSingleton<ISpatialCalculator, SpatialCalculator>();
 
         // Register Global Fishing Watch client
         services.Configure<GlobalFishingWatchOptions>(
@@ -32,6 +33,9 @@ public static class DependencyInjection
         });
 
         // Register NOAA Coral Reef Watch client
+        services.Configure<CoralReefWatchOptions>(
+            configuration.GetSection(CoralReefWatchOptions.SectionName));
+
         services.AddHttpClient<ICoralReefWatchClient, CoralReefWatchClient>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30); // Reduced from 5 min for better UX

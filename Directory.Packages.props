@@ -25,6 +25,7 @@
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
     <PackageVersion Include="NetTopologySuite.IO.GeoJSON" Version="4.0.0" />
     <PackageVersion Include="NetTopologySuite.Features" Version="2.2.0" />
+    <PackageVersion Include="ProjNet" Version="2.0.0" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
     <!-- CQRS & Validation -->
     <PackageVersion Include="MediatR" Version="12.4.1" />
