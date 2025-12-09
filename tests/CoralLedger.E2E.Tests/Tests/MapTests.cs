@@ -758,9 +758,8 @@ public class MapTests : PlaywrightFixture
     [Description("Captures baseline screenshot of list view")]
     public async Task Map_CaptureBaselineListView()
     {
-        // Navigate and wait for map
-        await Page.GotoAsync($"{BaseUrl}/map");
-        await Page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        // Navigate via the page object to ensure Blazor + map are fully ready
+        await _mapPage.NavigateAsync();
         await Task.Delay(3000);
 
         // Switch to list view

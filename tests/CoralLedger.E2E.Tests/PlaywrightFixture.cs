@@ -1,4 +1,9 @@
+using System.Net.Http;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Playwright;
 
 namespace CoralLedger.E2E.Tests;
 
@@ -8,6 +13,15 @@ namespace CoralLedger.E2E.Tests;
 /// </summary>
 public class PlaywrightFixture : PageTest
 {
+    private static readonly FieldInfo PageField = typeof(PageTest).GetField("<Page>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+    private static void ReplacePage(PageTest instance, IPage page)
+    {
+        PageField.SetValue(instance, page);
+    }
+
+    private IBrowserContext? _secureContext;
+
     protected string BaseUrl { get; private set; } = null!;
     protected IConfiguration Configuration { get; private set; } = null!;
     protected List<string> ConsoleErrors { get; } = new();
@@ -15,6 +29,8 @@ public class PlaywrightFixture : PageTest
     [SetUp]
     public async Task BaseSetUp()
     {
+        await EnsureSecureContextAsync();
+
         // Load configuration
         Configuration = new ConfigurationBuilder()
             .SetBasePath(TestContext.CurrentContext.TestDirectory)
@@ -23,9 +39,11 @@ public class PlaywrightFixture : PageTest
             .Build();
 
         // Get base URL from environment or config
-        BaseUrl = Environment.GetEnvironmentVariable("E2E_BASE_URL")
-            ?? Configuration["BaseUrl"]
-            ?? "https://localhost:7232";
+        var environmentUrl = Environment.GetEnvironmentVariable("E2E_BASE_URL");
+        var configuredUrl = environmentUrl ?? Configuration["BaseUrl"];
+        var alternateUrl = Configuration["AlternateBaseUrl"];
+
+        BaseUrl = await ResolveBaseUrlAsync(configuredUrl, alternateUrl);
 
         // Track console errors
         Page.Console += (_, msg) =>
@@ -57,6 +75,13 @@ public class PlaywrightFixture : PageTest
             TestContext.AddTestAttachment(screenshotPath, "Failure Screenshot");
         }
 
+        // Close secure context
+        if (_secureContext != null)
+        {
+            await _secureContext.CloseAsync();
+            _secureContext = null;
+        }
+
         // Clear console errors for next test
         ConsoleErrors.Clear();
     }
@@ -81,5 +106,75 @@ public class PlaywrightFixture : PageTest
     protected void AssertNoConsoleErrors()
     {
         ConsoleErrors.Should().BeEmpty("Page should not have console errors");
+    }
+
+    private async Task EnsureSecureContextAsync()
+    {
+        if (Page != null)
+        {
+            if (Page.Context != null)
+            {
+                await Page.Context.CloseAsync();
+            }
+
+            await Page.CloseAsync();
+        }
+
+        _secureContext = await Browser.NewContextAsync(new()
+        {
+            IgnoreHTTPSErrors = true
+        });
+        var newPage = await _secureContext.NewPageAsync();
+        ReplacePage(this, newPage);
+    }
+    
+    private async Task<string> ResolveBaseUrlAsync(string primary, string? alternate)
+    {
+        var candidates = new List<string?>
+        {
+            primary,
+            alternate,
+            "https://localhost:7232",
+            "http://localhost:7232",
+            "https://localhost:17088",
+            "http://localhost:17088"
+        };
+
+        foreach (var candidate in candidates.Where(u => !string.IsNullOrWhiteSpace(u)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (await IsUrlResponsiveAsync(candidate!))
+            {
+                TestContext.Progress.WriteLine($"Playwright targeting {candidate}");
+                return candidate!;
+            }
+        }
+
+        var fallback = candidates.FirstOrDefault(u => !string.IsNullOrWhiteSpace(u)) ?? "https://localhost:7232";
+        TestContext.Progress.WriteLine($"Playwright fallback base URL {fallback}");
+        return fallback;
+    }
+
+    private async Task<bool> IsUrlResponsiveAsync(string url)
+    {
+        try
+        {
+            using var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            };
+
+            using var client = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(3)
+            };
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

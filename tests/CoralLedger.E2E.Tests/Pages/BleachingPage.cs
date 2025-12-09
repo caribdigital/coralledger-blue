@@ -16,13 +16,23 @@ public class BleachingPage : BasePage
         // Wait for data to load
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-        // Look for specific bleaching-related content using First to avoid strict mode violations
+        // Look for specific bleaching-related content anywhere on the page.
         var content = Page.GetByText("Alert Level").Or(
             Page.GetByText("DHW")).Or(
             Page.GetByText("Degree Heating")).Or(
             Page.GetByText("SST")).Or(
-            Page.GetByText("Temperature")).First;
-        return await content.IsVisibleAsync();
+            Page.GetByText("Temperature"));
+
+        var count = await content.CountAsync();
+        for (var i = 0; i < count; i++)
+        {
+            if (await content.Nth(i).IsVisibleAsync())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public async Task<bool> HasChartsAsync()

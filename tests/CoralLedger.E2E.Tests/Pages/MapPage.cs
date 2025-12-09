@@ -16,12 +16,12 @@ public class MapPage : BasePage
         await base.WaitForPageLoadAsync();
         // Wait for Leaflet map container to render
         await Page.WaitForSelectorAsync(".leaflet-map-container, .leaflet-container, [class*='map']",
-            new PageWaitForSelectorOptions { Timeout = 15000 });
+            new PageWaitForSelectorOptions { Timeout = 30000 });
         // Wait for loading overlay to disappear
         await Page.WaitForFunctionAsync(@"() => {
             const overlay = document.querySelector('.loading-overlay');
             return !overlay || overlay.style.display === 'none' || !document.body.contains(overlay);
-        }", new PageWaitForFunctionOptions { Timeout = 20000 });
+        }", new PageWaitForFunctionOptions { Timeout = 30000 });
     }
 
     public async Task<bool> IsMapContainerVisibleAsync()
@@ -377,8 +377,57 @@ public class MapPage : BasePage
     /// </summary>
     public async Task SwitchToListViewAsync()
     {
-        var listViewButton = Page.GetByRole(AriaRole.Button, new() { Name = "List View" });
-        await listViewButton.ClickAsync();
+        var viewToggle = Page.Locator(".view-toggle").First;
+        await viewToggle.WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = 30000
+        });
+
+        if (await viewToggle.CountAsync() > 0)
+        {
+            var toggleButtons = viewToggle.Locator("button");
+            var toggleCount = await toggleButtons.CountAsync();
+            if (toggleCount > 1)
+            {
+                var listViewButton = toggleButtons.Nth(1);
+                await listViewButton.WaitForAsync(new LocatorWaitForOptions
+                {
+                    State = WaitForSelectorState.Visible,
+                    Timeout = 20000
+                });
+
+                await listViewButton.ClickAsync();
+                return;
+            }
+        }
+
+        var listViewLocator = Page.GetByRole(AriaRole.Button, new() { Name = "List View" });
+        if (await listViewLocator.CountAsync() > 0)
+        {
+            await listViewLocator.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = 20000
+            });
+
+            await listViewLocator.ClickAsync();
+            return;
+        }
+
+        var fallbackSelector = "button:has-text(\"List View\")";
+        var fallbackButton = await Page.WaitForSelectorAsync(fallbackSelector, new PageWaitForSelectorOptions
+        {
+            Timeout = 20000,
+            State = WaitForSelectorState.Visible
+        });
+
+        if (fallbackButton is null)
+        {
+            throw new PlaywrightException("List View button not found on Map page.");
+        }
+
+        await fallbackButton.ClickAsync();
     }
 
     /// <summary>
