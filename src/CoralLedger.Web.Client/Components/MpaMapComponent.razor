@@ -537,7 +537,7 @@
             var ring = factory.CreateLinearRing(transformedCoords);
             return factory.CreatePolygon(ring);
         }
-        else if (geometry is Point)
+        else if (geometry is NetTopologySuite.Geometries.Point)
         {
             return factory.CreatePoint(transformedCoords[0]);
         }
