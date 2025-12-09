@@ -119,7 +119,7 @@ public class AlertRuleEngine : IAlertRuleEngine
 
         foreach (var rule in rules)
         {
-            rule.RecordTrigger();
+            rule.LastTriggeredAt = DateTime.UtcNow;
         }
 
         var count = await _context.SaveChangesAsync(cancellationToken);
