@@ -27,6 +27,7 @@ public class TestDbContext : DbContext, IMarineDbContext
     public DbSet<BahamianSpecies> BahamianSpecies => Set<BahamianSpecies>();
     public DbSet<SpeciesObservation> SpeciesObservations => Set<SpeciesObservation>();
     public DbSet<SpeciesMisidentificationReport> MisidentificationReports => Set<SpeciesMisidentificationReport>();
+    public DbSet<NLQAuditLog> NLQAuditLogs => Set<NLQAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -101,6 +102,11 @@ public class TestDbContext : DbContext, IMarineDbContext
         });
 
         modelBuilder.Entity<SpeciesMisidentificationReport>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+        });
+
+        modelBuilder.Entity<NLQAuditLog>(entity =>
         {
             entity.HasKey(e => e.Id);
         });

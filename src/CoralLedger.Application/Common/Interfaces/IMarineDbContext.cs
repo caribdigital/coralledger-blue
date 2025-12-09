@@ -19,6 +19,7 @@ public interface IMarineDbContext
     DbSet<BahamianSpecies> BahamianSpecies { get; }
     DbSet<SpeciesObservation> SpeciesObservations { get; }
     DbSet<SpeciesMisidentificationReport> MisidentificationReports { get; }
+    DbSet<NLQAuditLog> NLQAuditLogs { get; }
 
     /// <summary>
     /// Provides access to database related operations like raw SQL execution

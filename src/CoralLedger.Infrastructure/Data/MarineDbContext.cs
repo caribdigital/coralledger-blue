@@ -23,6 +23,7 @@ public class MarineDbContext : DbContext, IMarineDbContext
     public DbSet<BahamianSpecies> BahamianSpecies => Set<BahamianSpecies>();
     public DbSet<SpeciesObservation> SpeciesObservations => Set<SpeciesObservation>();
     public DbSet<SpeciesMisidentificationReport> MisidentificationReports => Set<SpeciesMisidentificationReport>();
+    public DbSet<NLQAuditLog> NLQAuditLogs => Set<NLQAuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
