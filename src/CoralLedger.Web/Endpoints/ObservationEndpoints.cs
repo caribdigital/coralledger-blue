@@ -1,4 +1,5 @@
 using CoralLedger.Application.Common.Interfaces;
+using CoralLedger.Application.Common.Models;
 using CoralLedger.Application.Features.Observations.Commands.CreateObservation;
 using CoralLedger.Application.Features.Observations.Queries.GetObservationById;
 using CoralLedger.Application.Features.Observations.Queries.GetObservations;
@@ -299,9 +300,158 @@ public static class ObservationEndpoints
         .WithDescription("Get approved observations as GeoJSON for map display")
         .Produces<object>();
 
+        // POST /api/observations/validate - Pre-validate observation before submission
+        // Sprint 4.2 US-4.2.2/4.2.3/4.2.6: Validation with EXIF, geofencing, plausibility
+        group.MapPost("/validate", async (
+            ValidateObservationRequest request,
+            IObservationValidationService validationService,
+            CancellationToken ct = default) =>
+        {
+            var validationRequest = new ObservationValidationRequest
+            {
+                Longitude = request.Longitude,
+                Latitude = request.Latitude,
+                ObservationTime = request.ObservationTime,
+                ObservationType = request.ObservationType,
+                TrustLevel = request.TrustLevel ?? 0,
+                DepthMeters = request.DepthMeters,
+                Notes = request.Notes,
+                Photos = new List<PhotoValidationData>()
+            };
+
+            var result = await validationService.ValidateObservationAsync(validationRequest, ct);
+
+            return Results.Ok(new
+            {
+                isValid = result.IsValid,
+                hasBlockingIssues = result.HasBlockingIssues,
+                hasWarnings = result.HasWarnings,
+                requiresModerationReview = result.RequiresModerationReview,
+                trustScoreAdjustment = result.TrustScoreAdjustment,
+                summary = result.Summary,
+                geofence = new
+                {
+                    isWithinBahamasEez = result.GeofenceResult.IsWithinBahamasEez,
+                    areCoordinatesValid = result.GeofenceResult.AreCoordinatesValid,
+                    errorMessage = result.GeofenceResult.ErrorMessage,
+                    distanceToEezKm = result.GeofenceResult.DistanceToEezKm
+                },
+                plausibilityIssues = result.PlausibilityIssues.Select(p => new
+                {
+                    checkType = p.CheckType.ToString(),
+                    severity = p.Severity.ToString(),
+                    description = p.Description,
+                    affectedField = p.AffectedField
+                })
+            });
+        })
+        .WithName("ValidateObservation")
+        .WithDescription("Pre-validate observation data before submission (geofencing, plausibility checks)")
+        .Produces<object>()
+        .Produces(StatusCodes.Status400BadRequest);
+
+        // POST /api/observations/{id}/photos/{photoId}/validate-exif - Validate photo EXIF against observation location
+        // Sprint 4.2 US-4.2.2: EXIF validation with 500m tolerance
+        group.MapPost("/{id:guid}/photos/{photoId:guid}/validate-exif", async (
+            Guid id,
+            Guid photoId,
+            IMarineDbContext dbContext,
+            IObservationValidationService validationService,
+            IBlobStorageService blobStorage,
+            CancellationToken ct = default) =>
+        {
+            // Get observation with photo
+            var observation = await dbContext.CitizenObservations
+                .Include(o => o.Photos)
+                .FirstOrDefaultAsync(o => o.Id == id, ct);
+
+            if (observation is null)
+            {
+                return Results.NotFound(new { error = "Observation not found" });
+            }
+
+            var photo = observation.Photos.FirstOrDefault(p => p.Id == photoId);
+            if (photo is null)
+            {
+                return Results.NotFound(new { error = "Photo not found" });
+            }
+
+            // Download photo from blob storage to extract EXIF
+            var photoStream = await blobStorage.DownloadPhotoAsync(photo.BlobName, ct);
+            if (photoStream is null)
+            {
+                return Results.Problem("Failed to download photo for EXIF analysis", statusCode: 500);
+            }
+
+            try
+            {
+                // Extract EXIF GPS data
+                var exifGps = await validationService.ExtractExifGpsAsync(photoStream);
+
+                if (exifGps is null)
+                {
+                    return Results.Ok(new
+                    {
+                        photoId,
+                        hasExifGps = false,
+                        message = "Photo does not contain GPS metadata"
+                    });
+                }
+
+                // Validate against observation location
+                var validationResult = validationService.ValidateExifLocation(
+                    observation.Location.X, // Longitude
+                    observation.Location.Y, // Latitude
+                    exifGps.Longitude,
+                    exifGps.Latitude);
+
+                return Results.Ok(new
+                {
+                    photoId,
+                    hasExifGps = true,
+                    isLocationValid = validationResult.IsLocationValid,
+                    distanceMeters = validationResult.DistanceMeters,
+                    toleranceMeters = validationResult.ToleranceMeters,
+                    exifGps = new
+                    {
+                        longitude = exifGps.Longitude,
+                        latitude = exifGps.Latitude,
+                        altitude = exifGps.AltitudeMeters,
+                        timestamp = exifGps.GpsTimestamp,
+                        accuracy = exifGps.AccuracyMeters
+                    },
+                    observationLocation = new
+                    {
+                        longitude = observation.Location.X,
+                        latitude = observation.Location.Y
+                    }
+                });
+            }
+            finally
+            {
+                await photoStream.DisposeAsync();
+            }
+        })
+        .WithName("ValidatePhotoExif")
+        .WithDescription("Validate photo EXIF GPS against observation location (500m tolerance per Dr. Thorne)")
+        .Produces<object>()
+        .Produces(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 }
+
+/// <summary>
+/// Request model for observation validation
+/// </summary>
+public record ValidateObservationRequest(
+    double Longitude,
+    double Latitude,
+    DateTime ObservationTime,
+    string ObservationType,
+    int? TrustLevel = 0,
+    double? DepthMeters = null,
+    string? Notes = null);
 
 public record CreateObservationRequest(
     double Longitude,
