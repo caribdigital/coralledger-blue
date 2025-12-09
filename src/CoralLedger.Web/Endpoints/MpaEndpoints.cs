@@ -66,6 +66,96 @@ public static class MpaEndpoints
         .Produces<SyncResult>()
         .Produces<SyncResult>(StatusCodes.Status400BadRequest);
 
+        // GET /api/mpas/nearest?lon={lon}&lat={lat} - Find nearest MPA to a point
+        group.MapGet("/nearest", async (
+            double lon,
+            double lat,
+            IMpaProximityService proximityService,
+            CancellationToken ct) =>
+        {
+            var factory = new NetTopologySuite.Geometries.GeometryFactory(
+                new NetTopologySuite.Geometries.PrecisionModel(), 4326);
+            var point = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(lon, lat));
+
+            var result = await proximityService.FindNearestMpaAsync(point, ct);
+            if (result == null)
+                return Results.NotFound("No MPAs found");
+
+            return Results.Ok(new
+            {
+                result.MpaId,
+                result.MpaName,
+                ProtectionLevel = result.ProtectionLevel.ToString(),
+                result.DistanceKm,
+                result.IsWithinMpa,
+                NearestPoint = result.NearestBoundaryPoint != null
+                    ? new { Lon = result.NearestBoundaryPoint.X, Lat = result.NearestBoundaryPoint.Y }
+                    : null
+            });
+        })
+        .WithName("GetNearestMpa")
+        .WithDescription("Find the nearest Marine Protected Area to a given coordinate")
+        .Produces<object>()
+        .Produces(StatusCodes.Status404NotFound);
+
+        // GET /api/mpas/contains?lon={lon}&lat={lat} - Check if point is within an MPA
+        group.MapGet("/contains", async (
+            double lon,
+            double lat,
+            IMpaProximityService proximityService,
+            CancellationToken ct) =>
+        {
+            var factory = new NetTopologySuite.Geometries.GeometryFactory(
+                new NetTopologySuite.Geometries.PrecisionModel(), 4326);
+            var point = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(lon, lat));
+
+            var result = await proximityService.CheckMpaContainmentAsync(point, ct);
+            if (result == null)
+                return Results.Ok(new { IsWithinMpa = false });
+
+            return Results.Ok(new
+            {
+                IsWithinMpa = true,
+                result.MpaId,
+                result.MpaName,
+                ProtectionLevel = result.ProtectionLevel.ToString(),
+                result.IsNoTakeZone,
+                result.DistanceToNearestBoundaryKm,
+                result.NearestReefId,
+                result.NearestReefName
+            });
+        })
+        .WithName("CheckMpaContainment")
+        .WithDescription("Check if a coordinate is within a Marine Protected Area")
+        .Produces<object>();
+
+        // GET /api/mpas/within-radius?lon={lon}&lat={lat}&radiusKm={radiusKm} - Find MPAs within radius
+        group.MapGet("/within-radius", async (
+            double lon,
+            double lat,
+            double radiusKm,
+            IMpaProximityService proximityService,
+            CancellationToken ct) =>
+        {
+            var factory = new NetTopologySuite.Geometries.GeometryFactory(
+                new NetTopologySuite.Geometries.PrecisionModel(), 4326);
+            var point = factory.CreatePoint(new NetTopologySuite.Geometries.Coordinate(lon, lat));
+
+            var results = await proximityService.FindMpasWithinRadiusAsync(point, radiusKm, ct);
+
+            return Results.Ok(results.Select(r => new
+            {
+                r.MpaId,
+                r.MpaName,
+                ProtectionLevel = r.ProtectionLevel.ToString(),
+                r.DistanceKm,
+                r.IsWithinMpa
+            }));
+        })
+        .WithName("GetMpasWithinRadius")
+        .WithDescription("Find all Marine Protected Areas within a given radius of a coordinate")
+        .Produces<object>();
+
         // GET /api/mpas/stats - Get MPA statistics
         group.MapGet("/stats", async (IMarineDbContext context, CancellationToken ct) =>
         {
