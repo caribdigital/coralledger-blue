@@ -55,6 +55,15 @@ public static class CacheKeys
     public const string VesselPositions = "vessels:positions:v1";
     public const string VesselEvents = "vessels:events:v1";
 
+    // Global Fishing Watch cache keys
+    public const string GfwVesselSearch = "gfw:vessels:search:{0}:v1"; // {0} = query hash
+    public const string GfwVesselDetail = "gfw:vessels:detail:{0}:v1"; // {0} = vessel id
+    public const string GfwFishingEvents = "gfw:events:fishing:{0}:{1}:{2}:v1"; // {0} = region hash, {1} = start date, {2} = end date
+    public const string GfwPortVisits = "gfw:events:port:{0}:{1}:{2}:v1"; // {0} = vessel id or "all", {1} = start date, {2} = end date
+    public const string GfwEncounters = "gfw:events:encounters:{0}:{1}:{2}:v1"; // {0} = region hash, {1} = start date, {2} = end date
+    public const string GfwFishingStats = "gfw:stats:fishing:{0}:{1}:{2}:v1"; // {0} = region hash, {1} = start date, {2} = end date
+    public const string GfwPrefix = "gfw:";
+
     // Alert cache keys
     public const string AlertsActive = "alerts:active:v1";
     public const string AlertRules = "alerts:rules:v1";
@@ -75,6 +84,41 @@ public static class CacheKeys
     }
     public static string ForBleachingTimeSeries(double lon, double lat, DateOnly startDate, DateOnly endDate) =>
         string.Format(BleachingTimeSeries, lon.ToString("F6"), lat.ToString("F6"), startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"));
+
+    // GFW helper methods
+    public static string ForGfwVesselSearch(string? query, string? flag, string? vesselType)
+    {
+        var hash = $"{query ?? ""}:{flag ?? ""}:{vesselType ?? ""}".GetHashCode().ToString("X");
+        return string.Format(GfwVesselSearch, hash);
+    }
+
+    public static string ForGfwVessel(string vesselId) => string.Format(GfwVesselDetail, vesselId);
+
+    public static string ForGfwFishingEvents(double minLon, double minLat, double maxLon, double maxLat, DateTime startDate, DateTime endDate)
+    {
+        var regionHash = $"{minLon:F2}_{minLat:F2}_{maxLon:F2}_{maxLat:F2}".GetHashCode().ToString("X");
+        return string.Format(GfwFishingEvents, regionHash, startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"));
+    }
+
+    public static string ForGfwPortVisits(string? vesselId, DateTime? startDate, DateTime? endDate)
+    {
+        var vessel = vesselId ?? "all";
+        var start = startDate?.ToString("yyyy-MM-dd") ?? "any";
+        var end = endDate?.ToString("yyyy-MM-dd") ?? "any";
+        return string.Format(GfwPortVisits, vessel, start, end);
+    }
+
+    public static string ForGfwEncounters(double minLon, double minLat, double maxLon, double maxLat, DateTime startDate, DateTime endDate)
+    {
+        var regionHash = $"{minLon:F2}_{minLat:F2}_{maxLon:F2}_{maxLat:F2}".GetHashCode().ToString("X");
+        return string.Format(GfwEncounters, regionHash, startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"));
+    }
+
+    public static string ForGfwFishingStats(double minLon, double minLat, double maxLon, double maxLat, DateTime startDate, DateTime endDate)
+    {
+        var regionHash = $"{minLon:F2}_{minLat:F2}_{maxLon:F2}_{maxLat:F2}".GetHashCode().ToString("X");
+        return string.Format(GfwFishingStats, regionHash, startDate.ToString("yyyy-MM-dd"), endDate.ToString("yyyy-MM-dd"));
+    }
 }
 
 /// <summary>

@@ -32,4 +32,9 @@ public class RedisCacheOptions
     /// Default TTL for NOAA bleaching data cache in hours
     /// </summary>
     public int NoaaBleachingCacheTtlHours { get; set; } = 12;
+
+    /// <summary>
+    /// Default TTL for Global Fishing Watch API cache in hours
+    /// </summary>
+    public int GfwCacheTtlHours { get; set; } = 6;
 }

@@ -12,11 +12,14 @@ namespace CoralLedger.Infrastructure.ExternalServices;
 /// <summary>
 /// Client implementation for Global Fishing Watch API v3
 /// Base URL: https://gateway.api.globalfishingwatch.org/
+/// Implements Redis caching for API responses (Sprint 3.3 - US-3.3.5)
 /// </summary>
 public class GlobalFishingWatchClient : IGlobalFishingWatchClient
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<GlobalFishingWatchClient> _logger;
+    private readonly ICacheService _cache;
+    private readonly IOptions<RedisCacheOptions> _cacheOptions;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly GlobalFishingWatchOptions _options;
 
@@ -26,10 +29,14 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
     public GlobalFishingWatchClient(
         HttpClient httpClient,
         IOptions<GlobalFishingWatchOptions> options,
-        ILogger<GlobalFishingWatchClient> logger)
+        ILogger<GlobalFishingWatchClient> logger,
+        ICacheService cache,
+        IOptions<RedisCacheOptions> cacheOptions)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _cache = cache;
+        _cacheOptions = cacheOptions;
         _options = options.Value;
 
         // Validate configuration and warn if enabled but missing token
@@ -53,6 +60,8 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
         };
     }
 
+    private TimeSpan CacheTtl => TimeSpan.FromHours(_cacheOptions.Value.GfwCacheTtlHours);
+
     public async Task<IEnumerable<GfwVesselInfo>> SearchVesselsAsync(
         string? query = null,
         string? flag = null,
@@ -60,6 +69,15 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
         int limit = 100,
         CancellationToken cancellationToken = default)
     {
+        // Check cache first
+        var cacheKey = CacheKeys.ForGfwVesselSearch(query, flag, vesselType?.ToString());
+        var cached = await _cache.GetAsync<GfwVesselCollectionWrapper>(cacheKey, cancellationToken);
+        if (cached?.Data != null)
+        {
+            _logger.LogDebug("GFW vessel search cache hit for query: {Query}", query);
+            return cached.Data;
+        }
+
         try
         {
             var queryParams = new List<string>();
@@ -79,7 +97,12 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<GfwVesselSearchResponse>(_jsonOptions, cancellationToken);
-            return result?.Entries?.Select(MapToVesselInfo) ?? Enumerable.Empty<GfwVesselInfo>();
+            var vessels = result?.Entries?.Select(MapToVesselInfo).ToList() ?? new List<GfwVesselInfo>();
+
+            // Cache the result
+            await _cache.SetAsync(cacheKey, new GfwVesselCollectionWrapper { Data = vessels }, CacheTtl, cancellationToken);
+
+            return vessels;
         }
         catch (Exception ex)
         {
@@ -92,6 +115,15 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
         string vesselId,
         CancellationToken cancellationToken = default)
     {
+        // Check cache first
+        var cacheKey = CacheKeys.ForGfwVessel(vesselId);
+        var cached = await _cache.GetAsync<GfwVesselWrapper>(cacheKey, cancellationToken);
+        if (cached != null)
+        {
+            _logger.LogDebug("GFW vessel detail cache hit for: {VesselId}", vesselId);
+            return cached.Data;
+        }
+
         try
         {
             var response = await _httpClient.GetAsync(
@@ -105,7 +137,15 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
             }
 
             var result = await response.Content.ReadFromJsonAsync<GfwVesselEntry>(_jsonOptions, cancellationToken);
-            return result != null ? MapToVesselInfo(result) : null;
+            var vessel = result != null ? MapToVesselInfo(result) : null;
+
+            // Cache the result (even if null)
+            if (vessel != null)
+            {
+                await _cache.SetAsync(cacheKey, new GfwVesselWrapper { Data = vessel }, CacheTtl, cancellationToken);
+            }
+
+            return vessel;
         }
         catch (Exception ex)
         {
@@ -124,7 +164,22 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
         int limit = 1000,
         CancellationToken cancellationToken = default)
     {
-        return await GetEventsAsync("fishing", minLon, minLat, maxLon, maxLat, startDate, endDate, limit, cancellationToken);
+        // Check cache first
+        var cacheKey = CacheKeys.ForGfwFishingEvents(minLon, minLat, maxLon, maxLat, startDate, endDate);
+        var cached = await _cache.GetAsync<GfwEventCollectionWrapper>(cacheKey, cancellationToken);
+        if (cached?.Data != null)
+        {
+            _logger.LogDebug("GFW fishing events cache hit for region");
+            return cached.Data;
+        }
+
+        var events = await GetEventsAsync("fishing", minLon, minLat, maxLon, maxLat, startDate, endDate, limit, cancellationToken);
+        var eventList = events.ToList();
+
+        // Cache the result
+        await _cache.SetAsync(cacheKey, new GfwEventCollectionWrapper { Data = eventList }, CacheTtl, cancellationToken);
+
+        return eventList;
     }
 
     public async Task<IEnumerable<GfwEvent>> GetPortVisitsAsync(
@@ -134,6 +189,15 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
         int limit = 1000,
         CancellationToken cancellationToken = default)
     {
+        // Check cache first
+        var cacheKey = CacheKeys.ForGfwPortVisits(vesselId, startDate, endDate);
+        var cached = await _cache.GetAsync<GfwEventCollectionWrapper>(cacheKey, cancellationToken);
+        if (cached?.Data != null)
+        {
+            _logger.LogDebug("GFW port visits cache hit for vessel: {VesselId}", vesselId);
+            return cached.Data;
+        }
+
         try
         {
             var queryParams = new List<string>
@@ -154,7 +218,12 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<GfwEventsResponse>(_jsonOptions, cancellationToken);
-            return result?.Entries?.Select(MapToEvent) ?? Enumerable.Empty<GfwEvent>();
+            var events = result?.Entries?.Select(MapToEvent).ToList() ?? new List<GfwEvent>();
+
+            // Cache the result
+            await _cache.SetAsync(cacheKey, new GfwEventCollectionWrapper { Data = events }, CacheTtl, cancellationToken);
+
+            return events;
         }
         catch (Exception ex)
         {
@@ -173,7 +242,22 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
         int limit = 1000,
         CancellationToken cancellationToken = default)
     {
-        return await GetEventsAsync("encounter", minLon, minLat, maxLon, maxLat, startDate, endDate, limit, cancellationToken);
+        // Check cache first
+        var cacheKey = CacheKeys.ForGfwEncounters(minLon, minLat, maxLon, maxLat, startDate, endDate);
+        var cached = await _cache.GetAsync<GfwEventCollectionWrapper>(cacheKey, cancellationToken);
+        if (cached?.Data != null)
+        {
+            _logger.LogDebug("GFW encounters cache hit for region");
+            return cached.Data;
+        }
+
+        var events = await GetEventsAsync("encounter", minLon, minLat, maxLon, maxLat, startDate, endDate, limit, cancellationToken);
+        var eventList = events.ToList();
+
+        // Cache the result
+        await _cache.SetAsync(cacheKey, new GfwEventCollectionWrapper { Data = eventList }, CacheTtl, cancellationToken);
+
+        return eventList;
     }
 
     public async Task<GfwFishingEffortStats> GetFishingEffortStatsAsync(
@@ -185,6 +269,15 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
         DateTime endDate,
         CancellationToken cancellationToken = default)
     {
+        // Check cache first
+        var cacheKey = CacheKeys.ForGfwFishingStats(minLon, minLat, maxLon, maxLat, startDate, endDate);
+        var cached = await _cache.GetAsync<GfwFishingStatsWrapper>(cacheKey, cancellationToken);
+        if (cached?.Data != null)
+        {
+            _logger.LogDebug("GFW fishing stats cache hit for region");
+            return cached.Data;
+        }
+
         try
         {
             var geometry = $"{{\"type\":\"Polygon\",\"coordinates\":[[[{minLon},{minLat}],[{maxLon},{minLat}],[{maxLon},{maxLat}],[{minLon},{maxLat}],[{minLon},{minLat}]]]}}";
@@ -196,7 +289,7 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
             response.EnsureSuccessStatusCode();
 
             var result = await response.Content.ReadFromJsonAsync<GfwStatsResponse>(_jsonOptions, cancellationToken);
-            return new GfwFishingEffortStats
+            var stats = new GfwFishingEffortStats
             {
                 TotalFishingHours = result?.TotalFishingHours ?? 0,
                 VesselCount = result?.VesselCount ?? 0,
@@ -204,6 +297,11 @@ public class GlobalFishingWatchClient : IGlobalFishingWatchClient
                 FishingHoursByFlag = result?.ByFlag ?? new Dictionary<string, double>(),
                 FishingHoursByGearType = result?.ByGearType ?? new Dictionary<string, double>()
             };
+
+            // Cache the result
+            await _cache.SetAsync(cacheKey, new GfwFishingStatsWrapper { Data = stats }, CacheTtl, cancellationToken);
+
+            return stats;
         }
         catch (Exception ex)
         {
@@ -395,3 +493,39 @@ public class GlobalFishingWatchOptions
     /// </summary>
     public bool Enabled { get; set; } = true;
 }
+
+#region Cache Wrapper Classes
+
+/// <summary>
+/// Wrapper for caching GFW vessel info
+/// </summary>
+internal class GfwVesselWrapper
+{
+    public GfwVesselInfo? Data { get; set; }
+}
+
+/// <summary>
+/// Wrapper for caching GFW vessel collections
+/// </summary>
+internal class GfwVesselCollectionWrapper
+{
+    public List<GfwVesselInfo>? Data { get; set; }
+}
+
+/// <summary>
+/// Wrapper for caching GFW event collections
+/// </summary>
+internal class GfwEventCollectionWrapper
+{
+    public List<GfwEvent>? Data { get; set; }
+}
+
+/// <summary>
+/// Wrapper for caching GFW fishing effort stats
+/// </summary>
+internal class GfwFishingStatsWrapper
+{
+    public GfwFishingEffortStats? Data { get; set; }
+}
+
+#endregion

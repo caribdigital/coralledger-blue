@@ -1,3 +1,4 @@
+using CoralLedger.Application.Common.Interfaces;
 using CoralLedger.Infrastructure.ExternalServices;
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -9,6 +10,15 @@ namespace CoralLedger.Infrastructure.Tests.ExternalServices;
 
 public class GlobalFishingWatchClientTests
 {
+    private readonly Mock<ICacheService> _mockCache;
+    private readonly IOptions<RedisCacheOptions> _cacheOptions;
+
+    public GlobalFishingWatchClientTests()
+    {
+        _mockCache = new Mock<ICacheService>();
+        _cacheOptions = Options.Create(new RedisCacheOptions { GfwCacheTtlHours = 6 });
+    }
+
     [Fact]
     public void Constructor_WithEnabledAndNoToken_LogsWarning()
     {
@@ -23,7 +33,7 @@ public class GlobalFishingWatchClientTests
         var httpClient = new HttpClient();
 
         // Act
-        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object);
+        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object, _mockCache.Object, _cacheOptions);
 
         // Assert
         mockLogger.Verify(
@@ -50,7 +60,7 @@ public class GlobalFishingWatchClientTests
         var httpClient = new HttpClient();
 
         // Act
-        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object);
+        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object, _mockCache.Object, _cacheOptions);
 
         // Assert
         mockLogger.Verify(
@@ -77,7 +87,7 @@ public class GlobalFishingWatchClientTests
         var httpClient = new HttpClient();
 
         // Act
-        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object);
+        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object, _mockCache.Object, _cacheOptions);
 
         // Assert
         mockLogger.Verify(
@@ -104,7 +114,7 @@ public class GlobalFishingWatchClientTests
         var httpClient = new HttpClient();
 
         // Act
-        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object);
+        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object, _mockCache.Object, _cacheOptions);
 
         // Assert
         httpClient.BaseAddress.Should().Be(new Uri("https://gateway.api.globalfishingwatch.org/"));
@@ -125,7 +135,7 @@ public class GlobalFishingWatchClientTests
         var httpClient = new HttpClient();
 
         // Act
-        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object);
+        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object, _mockCache.Object, _cacheOptions);
 
         // Assert
         httpClient.DefaultRequestHeaders.Authorization.Should().NotBeNull();
@@ -145,7 +155,7 @@ public class GlobalFishingWatchClientTests
 
         var mockLogger = new Mock<ILogger<GlobalFishingWatchClient>>();
         var httpClient = new HttpClient();
-        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object);
+        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object, _mockCache.Object, _cacheOptions);
 
         // Act & Assert
         client.IsConfigured.Should().BeTrue();
@@ -163,7 +173,7 @@ public class GlobalFishingWatchClientTests
 
         var mockLogger = new Mock<ILogger<GlobalFishingWatchClient>>();
         var httpClient = new HttpClient();
-        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object);
+        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object, _mockCache.Object, _cacheOptions);
 
         // Act & Assert
         client.IsConfigured.Should().BeFalse();
@@ -181,7 +191,7 @@ public class GlobalFishingWatchClientTests
 
         var mockLogger = new Mock<ILogger<GlobalFishingWatchClient>>();
         var httpClient = new HttpClient();
-        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object);
+        var client = new GlobalFishingWatchClient(httpClient, options, mockLogger.Object, _mockCache.Object, _cacheOptions);
 
         // Act & Assert
         client.IsConfigured.Should().BeFalse();
