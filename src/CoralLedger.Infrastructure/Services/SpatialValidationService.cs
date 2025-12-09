@@ -3,6 +3,7 @@ using CoralLedger.Infrastructure.Common;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Algorithm;
 using NetTopologySuite.Geometries;
+using TopologyException = NetTopologySuite.Geometries.TopologyException;
 
 namespace CoralLedger.Infrastructure.Services;
 
@@ -358,5 +359,120 @@ public class SpatialValidationService : ISpatialValidationService
 
         // Convert to km² (this is an approximation)
         return areaInDegrees * kmPerDegreeLon * kmPerDegreeLat;
+    }
+
+    /// <summary>
+    /// Calculate approximate area in square kilometers for any geometry in WGS84
+    /// </summary>
+    private static double CalculateAreaKm2(Geometry geometry)
+    {
+        if (geometry == null || geometry.IsEmpty)
+            return 0;
+
+        // Get the centroid's latitude for more accurate calculation
+        var centroid = geometry.Centroid;
+        var centroidLat = centroid?.Y ?? 25.0; // Default to Bahamas latitude
+        var latRadians = centroidLat * Math.PI / 180.0;
+
+        // Approximate degrees to km conversion at this latitude
+        var kmPerDegreeLon = 111.320 * Math.Cos(latRadians);
+        var kmPerDegreeLat = 110.574;
+
+        // Get the area in degrees squared
+        var areaInDegrees = geometry.Area;
+
+        // Convert to km² (this is an approximation)
+        return areaInDegrees * kmPerDegreeLon * kmPerDegreeLat;
+    }
+
+    /// <inheritdoc />
+    public BoundaryComparisonResult CompareBoundaries(Geometry existing, Geometry incoming)
+    {
+        if (existing == null || existing.IsEmpty || incoming == null || incoming.IsEmpty)
+        {
+            return new BoundaryComparisonResult
+            {
+                OverlapPercentage = 0,
+                AreaDifferencePercentage = 100,
+                JaccardSimilarityPercentage = 0,
+                IsEquivalent = false,
+                HasSignificantChange = true,
+                ExistingAreaKm2 = existing != null ? CalculateAreaKm2(existing) : 0,
+                IncomingAreaKm2 = incoming != null ? CalculateAreaKm2(incoming) : 0,
+                OverlapAreaKm2 = 0,
+                Summary = "One or both boundaries are null or empty"
+            };
+        }
+
+        try
+        {
+            // Calculate areas
+            var existingAreaKm2 = CalculateAreaKm2(existing);
+            var incomingAreaKm2 = CalculateAreaKm2(incoming);
+
+            // Calculate intersection and union for Jaccard similarity
+            var intersection = existing.Intersection(incoming);
+            var union = existing.Union(incoming);
+
+            var intersectionAreaKm2 = CalculateAreaKm2(intersection);
+            var unionAreaKm2 = CalculateAreaKm2(union);
+
+            // Calculate metrics
+            var overlapPercentage = existingAreaKm2 > 0
+                ? (intersectionAreaKm2 / existingAreaKm2) * 100
+                : 0;
+
+            var areaDifferencePercentage = existingAreaKm2 > 0
+                ? Math.Abs(incomingAreaKm2 - existingAreaKm2) / existingAreaKm2 * 100
+                : (incomingAreaKm2 > 0 ? 100 : 0);
+
+            var jaccardSimilarity = unionAreaKm2 > 0
+                ? (intersectionAreaKm2 / unionAreaKm2) * 100
+                : 0;
+
+            // Thresholds: 95% = equivalent, <80% = significant change
+            var isEquivalent = jaccardSimilarity >= 95;
+            var hasSignificantChange = jaccardSimilarity < 80;
+
+            // Generate summary
+            var summary = isEquivalent
+                ? $"Boundaries are equivalent ({jaccardSimilarity:F1}% similarity)"
+                : hasSignificantChange
+                    ? $"Significant boundary change detected ({jaccardSimilarity:F1}% similarity, {areaDifferencePercentage:F1}% area difference)"
+                    : $"Minor boundary adjustment ({jaccardSimilarity:F1}% similarity)";
+
+            _logger.LogDebug(
+                "Boundary comparison: Jaccard={Jaccard:F1}%, Overlap={Overlap:F1}%, AreaDiff={AreaDiff:F1}%",
+                jaccardSimilarity, overlapPercentage, areaDifferencePercentage);
+
+            return new BoundaryComparisonResult
+            {
+                OverlapPercentage = Math.Round(overlapPercentage, 2),
+                AreaDifferencePercentage = Math.Round(areaDifferencePercentage, 2),
+                JaccardSimilarityPercentage = Math.Round(jaccardSimilarity, 2),
+                IsEquivalent = isEquivalent,
+                HasSignificantChange = hasSignificantChange,
+                ExistingAreaKm2 = Math.Round(existingAreaKm2, 4),
+                IncomingAreaKm2 = Math.Round(incomingAreaKm2, 4),
+                OverlapAreaKm2 = Math.Round(intersectionAreaKm2, 4),
+                Summary = summary
+            };
+        }
+        catch (TopologyException ex)
+        {
+            _logger.LogWarning(ex, "Topology exception during boundary comparison - geometries may be invalid");
+            return new BoundaryComparisonResult
+            {
+                OverlapPercentage = 0,
+                AreaDifferencePercentage = 100,
+                JaccardSimilarityPercentage = 0,
+                IsEquivalent = false,
+                HasSignificantChange = true,
+                ExistingAreaKm2 = CalculateAreaKm2(existing),
+                IncomingAreaKm2 = CalculateAreaKm2(incoming),
+                OverlapAreaKm2 = 0,
+                Summary = $"Comparison failed: {ex.Message}"
+            };
+        }
     }
 }

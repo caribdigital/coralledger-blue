@@ -18,7 +18,8 @@ public record SyncResult(
     bool Success,
     string? Error = null,
     DateTime? SyncedAt = null,
-    double? NewAreaKm2 = null);
+    double? NewAreaKm2 = null,
+    BoundaryComparisonResult? BoundaryComparison = null);
 
 public class SyncMpaFromWdpaCommandHandler : IRequestHandler<SyncMpaFromWdpaCommand, SyncResult>
 {
@@ -98,6 +99,26 @@ public class SyncMpaFromWdpaCommandHandler : IRequestHandler<SyncMpaFromWdpaComm
             return new SyncResult(false, $"Invalid geometry (gates: {gates}): {errors}");
         }
 
+        // Compare existing boundary with incoming WDPA boundary
+        BoundaryComparisonResult? boundaryComparison = null;
+        if (mpa.Boundary != null && !mpa.Boundary.IsEmpty)
+        {
+            boundaryComparison = _spatialValidation.CompareBoundaries(mpa.Boundary, protectedArea.Boundary);
+
+            if (boundaryComparison.HasSignificantChange)
+            {
+                _logger.LogWarning(
+                    "Significant boundary change detected for MPA {MpaName}: {Summary}",
+                    mpa.Name, boundaryComparison.Summary);
+            }
+            else if (boundaryComparison.IsEquivalent)
+            {
+                _logger.LogDebug(
+                    "WDPA boundary equivalent to existing for MPA {MpaName}",
+                    mpa.Name);
+            }
+        }
+
         // Update the MPA boundary
         mpa.UpdateBoundaryFromWdpa(protectedArea.Boundary);
 
@@ -117,7 +138,8 @@ public class SyncMpaFromWdpaCommandHandler : IRequestHandler<SyncMpaFromWdpaComm
         return new SyncResult(
             Success: true,
             SyncedAt: mpa.WdpaLastSync,
-            NewAreaKm2: mpa.AreaSquareKm);
+            NewAreaKm2: mpa.AreaSquareKm,
+            BoundaryComparison: boundaryComparison);
     }
 
     private async Task GenerateSimplifiedGeometriesAsync(Guid mpaId, CancellationToken cancellationToken)

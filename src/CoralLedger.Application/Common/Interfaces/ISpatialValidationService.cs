@@ -32,6 +32,48 @@ public interface ISpatialValidationService
     /// Check if a geometry is within the Bahamas EEZ bounding box
     /// </summary>
     bool IsWithinBahamas(Geometry geometry);
+
+    /// <summary>
+    /// Compare two boundary geometries and calculate overlap metrics.
+    /// Used for WDPA sync to detect significant boundary changes.
+    /// </summary>
+    /// <param name="existing">Current boundary in the database</param>
+    /// <param name="incoming">New boundary from WDPA</param>
+    /// <returns>Comparison result with overlap metrics</returns>
+    BoundaryComparisonResult CompareBoundaries(Geometry existing, Geometry incoming);
+}
+
+/// <summary>
+/// Result of comparing two boundary geometries
+/// </summary>
+public sealed record BoundaryComparisonResult
+{
+    /// <summary>Percentage of the existing boundary covered by the incoming boundary (0-100)</summary>
+    public double OverlapPercentage { get; init; }
+
+    /// <summary>Percentage difference in total area</summary>
+    public double AreaDifferencePercentage { get; init; }
+
+    /// <summary>Jaccard similarity index (intersection / union) as percentage (0-100)</summary>
+    public double JaccardSimilarityPercentage { get; init; }
+
+    /// <summary>Whether the boundaries are considered equivalent (Jaccard >= 95%)</summary>
+    public bool IsEquivalent { get; init; }
+
+    /// <summary>Whether there is a significant change (Jaccard < 80%)</summary>
+    public bool HasSignificantChange { get; init; }
+
+    /// <summary>Area of the existing boundary in km²</summary>
+    public double ExistingAreaKm2 { get; init; }
+
+    /// <summary>Area of the incoming boundary in km²</summary>
+    public double IncomingAreaKm2 { get; init; }
+
+    /// <summary>Area of overlap in km²</summary>
+    public double OverlapAreaKm2 { get; init; }
+
+    /// <summary>Description of the comparison result</summary>
+    public string Summary { get; init; } = string.Empty;
 }
 
 /// <summary>
