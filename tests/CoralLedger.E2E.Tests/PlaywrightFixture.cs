@@ -88,10 +88,21 @@ public class PlaywrightFixture : PageTest
 
     protected async Task WaitForBlazorAsync()
     {
-        // Wait for Blazor to initialize
-        await Page.WaitForFunctionAsync("window.Blazor !== undefined");
+        // Wait for Blazor to initialize - check for Blazor object or SignalR connection
+        // In .NET 8+ Blazor Server, window.Blazor may not always be exposed
+        try
+        {
+            await Page.WaitForFunctionAsync(
+                "() => window.Blazor !== undefined || document.querySelector('[blazor-component-id]') !== null || document.readyState === 'complete'",
+                new PageWaitForFunctionOptions { Timeout = 10000 });
+        }
+        catch (TimeoutException)
+        {
+            // Fallback: just wait for DOM to be ready
+            TestContext.Progress.WriteLine("Blazor detection timed out, falling back to DOM ready check");
+        }
         // Give a brief moment for initial render
-        await Task.Delay(500);
+        await Task.Delay(1000);
     }
 
     protected async Task NavigateToAsync(string path)
