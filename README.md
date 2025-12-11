@@ -66,7 +66,19 @@ We're actively looking for contributors in these areas:
 
 ## Screenshots
 
-*Screenshots and GIFs of the application in action coming soon. Run `dotnet run --project src/CoralLedger.AppHost` to see it yourself!*
+### Marine Intelligence Dashboard
+![Dashboard with KPI cards, map preview, alerts, and MPA table](docs/screenshots/dashboard-dark.png)
+*The dashboard features real-time KPI cards for Protected Areas, Sea Temperature, and Bleaching Alerts, with an integrated map preview and MPA summary table.*
+
+### Interactive Map with Dark Theme
+![Interactive map with CartoDB Dark Matter tiles and MPA polygons](docs/screenshots/map-dark-with-legend.png)
+*The interactive map displays all 8 Bahamas MPAs with protection level styling, CartoDB Dark Matter tiles, and a dynamic legend.*
+
+### MPA Detail Panel with Live Data
+![MPA detail panel showing bleaching status and DHW trend](docs/screenshots/mpa-panel-with-bleaching.png)
+*Select any MPA to view live NOAA bleaching data, sea surface temperature, DHW trend sparklines, and alert status.*
+
+> **Note:** To see the app in action, run `dotnet run --project src/CoralLedger.AppHost`
 
 ## Technology Stack
 
@@ -74,7 +86,7 @@ We're actively looking for contributors in these areas:
 |-------|------------|
 | **Runtime** | .NET 10 |
 | **Frontend** | Blazor Server + WebAssembly (Auto mode) |
-| **Mapping** | Leaflet.js 1.9.4 with OpenStreetMap |
+| **Mapping** | Leaflet.js 1.9.4 with CartoDB Dark Matter & OpenStreetMap tiles |
 | **Database** | PostgreSQL 16 + PostGIS 3.4 |
 | **Caching** | Redis (StackExchange.Redis) with Azure Cache support |
 | **ORM** | Entity Framework Core 10 |

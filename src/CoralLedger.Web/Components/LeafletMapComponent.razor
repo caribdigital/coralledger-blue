@@ -31,7 +31,22 @@
         </div>
     }
 
-    <div id="@_mapId" style="height: 100%; width: 100%;"></div>
+    <div id="@_mapId" style="height: 100%; width: 100%;" role="application" aria-label="Interactive map of Bahamas Marine Protected Areas"></div>
+
+    @* US-2.2.3: Map Control Panel with theme toggle *@
+    @if (_mapInitialized && !_loading)
+    {
+        <div class="map-controls">
+            <div class="map-control-group">
+                <button class="map-control-btn @(UseDarkTheme ? "active" : "")"
+                        @onclick="ToggleTheme"
+                        title="@(UseDarkTheme ? "Switch to light theme" : "Switch to dark theme")"
+                        aria-label="@(UseDarkTheme ? "Switch to light theme" : "Switch to dark theme")">
+                    <i class="bi @(UseDarkTheme ? "bi-sun" : "bi-moon")"></i>
+                </button>
+            </div>
+        </div>
+    }
 
     @if (_mpaCount > 0 && !_loading)
     {
@@ -52,54 +67,6 @@
             <i class="bi bi-info-circle"></i> No fishing events in last 30 days
         </div>
     }
-
-    @if (ShowLegend)
-    {
-        <div class="map-legend">
-            <h6>Protection Levels</h6>
-            <div class="legend-item">
-                <span class="legend-color" style="background-color: #dc3545;"></span>
-                <span>No-Take Zone</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-color" style="background-color: #fd7e14;"></span>
-                <span>Highly Protected</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-color" style="background-color: #0dcaf0;"></span>
-                <span>Lightly Protected</span>
-            </div>
-            <div class="legend-item">
-                <span class="legend-color" style="background-color: #6c757d;"></span>
-                <span>Minimal Protection</span>
-            </div>
-            @if (ShowFishingEvents)
-            {
-                <hr class="my-2" />
-                <h6>Fishing Activity</h6>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background-color: #dc3545;"></span>
-                    <span>Last 7 days</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background-color: #fd7e14;"></span>
-                    <span>7-14 days ago</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background-color: #ffc107;"></span>
-                    <span>14-30 days ago</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot" style="background-color: #6c757d;"></span>
-                    <span>Older</span>
-                </div>
-                <div class="legend-item">
-                    <span class="legend-dot legend-mpa-violation" style="background-color: #dc3545; border: 3px solid #ff0000;"></span>
-                    <span>Inside MPA</span>
-                </div>
-            }
-        </div>
-    }
 </div>
 
 <style>
@@ -114,66 +81,33 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(255, 255, 255, 0.8);
+        background: rgba(5, 12, 26, 0.8);
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 1000;
     }
 
-    .map-legend {
+    /* US-2.2.3: Map controls positioned top-left */
+    .map-controls {
         position: absolute;
-        bottom: 20px;
-        right: 20px;
-        background: white;
-        padding: 12px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        z-index: 999;
-    }
-
-    .map-legend h6 {
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: #333;
-    }
-
-    .legend-item {
-        display: flex;
-        align-items: center;
-        margin-bottom: 4px;
-        font-size: 0.85rem;
-    }
-
-    .legend-color {
-        width: 16px;
-        height: 16px;
-        border-radius: 3px;
-        margin-right: 8px;
-        border: 1px solid rgba(0,0,0,0.2);
-    }
-
-    .legend-dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        display: inline-block;
-        margin-right: 8px;
-        border: 2px solid white;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        top: 10px;
+        left: 10px;
+        z-index: 1000;
     }
 
     .mpa-count-badge {
         position: absolute;
         top: 10px;
-        left: 50px;
-        background: rgba(255, 255, 255, 0.95);
+        left: 60px;
+        background: rgba(5, 12, 26, 0.92);
+        backdrop-filter: blur(8px);
         padding: 6px 12px;
-        border-radius: 4px;
+        border-radius: 8px;
         font-size: 0.85rem;
         font-weight: 500;
-        color: #198754;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        color: var(--color-success, #5DE285);
+        border: 1px solid var(--color-border, rgba(255,255,255,0.18));
         z-index: 999;
     }
 
@@ -183,21 +117,21 @@
 
     .fishing-events-badge {
         position: absolute;
-        top: 40px;
-        left: 50px;
-        background: rgba(255, 255, 255, 0.95);
+        top: 45px;
+        left: 60px;
+        background: rgba(5, 12, 26, 0.92);
+        backdrop-filter: blur(8px);
         padding: 6px 12px;
-        border-radius: 4px;
+        border-radius: 8px;
         font-size: 0.85rem;
         font-weight: 500;
-        color: #0d6efd;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+        color: var(--color-primary, #2EE3FF);
+        border: 1px solid var(--color-border, rgba(255,255,255,0.18));
         z-index: 999;
     }
 
     .fishing-events-badge.no-data {
-        color: #6c757d;
-        background: rgba(248, 249, 250, 0.95);
+        color: var(--color-text-muted, rgba(245,251,255,0.7));
     }
 
     .fishing-events-badge i {
@@ -224,6 +158,12 @@
     [Parameter]
     public DateTime? FishingEventsEndDate { get; set; }
 
+    /// <summary>
+    /// US-2.2.1: Use dark CartoDB tiles (default true for dark theme)
+    /// </summary>
+    [Parameter]
+    public bool UseDarkTheme { get; set; } = true;
+
     private string _mapId = $"leaflet-map-{Guid.NewGuid():N}";
     private bool _loading = true;
     private string? _errorMessage;
@@ -239,12 +179,18 @@
             {
                 _dotNetRef = DotNetObjectReference.Create(this);
 
-                // Initialize map centered on Bahamas
-                await JS.InvokeVoidAsync("leafletMap.initialize", _mapId, 24.5, -77.5, 7);
+                // US-2.2.1: Initialize map with dark theme support
+                await JS.InvokeVoidAsync("leafletMap.initialize", _mapId, 24.5, -77.5, 7, UseDarkTheme);
                 _mapInitialized = true;
 
                 // Load MPA data
                 await LoadMpaDataAsync();
+
+                // US-2.2.6: Add legend to map
+                if (ShowLegend)
+                {
+                    await JS.InvokeVoidAsync("leafletMap.addLegend", _mapId, true, ShowFishingEvents);
+                }
 
                 _loading = false;
                 StateHasChanged();
@@ -257,6 +203,15 @@
                 StateHasChanged();
             }
         }
+    }
+
+    /// <summary>
+    /// US-2.2.3: Toggle between dark and light map themes
+    /// </summary>
+    private async Task ToggleTheme()
+    {
+        UseDarkTheme = !UseDarkTheme;
+        await JS.InvokeVoidAsync("leafletMap.setTileTheme", _mapId, UseDarkTheme ? "dark" : "light");
     }
 
     protected override async Task OnParametersSetAsync()
@@ -274,6 +229,11 @@
         if (ShowFishingEvents && !_fishingEventsLoaded)
         {
             await LoadFishingEventsAsync();
+            // US-2.2.6: Update legend to show fishing activity
+            if (ShowLegend)
+            {
+                await JS.InvokeVoidAsync("leafletMap.updateLegend", _mapId, true, true);
+            }
         }
         else if (!ShowFishingEvents && _fishingEventsLoaded)
         {
@@ -281,6 +241,11 @@
             _fishingEventsLoaded = false;
             _fishingEventsCount = 0;
             _fishingEventsNoData = false;
+            // US-2.2.6: Update legend to hide fishing activity
+            if (ShowLegend)
+            {
+                await JS.InvokeVoidAsync("leafletMap.updateLegend", _mapId, true, false);
+            }
         }
     }
 

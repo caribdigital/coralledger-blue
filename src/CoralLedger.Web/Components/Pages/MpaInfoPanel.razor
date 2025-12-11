@@ -1,215 +1,647 @@
+@* US-2.3.3: Enhanced MPA Info Panel with live data section *@
 @inject IMediator Mediator
 @inject ICoralReefWatchClient CrwClient
 
-<div class="card h-100">
-    <div class="card-header bg-info text-white">
-        <strong>MPA Details</strong>
+<div class="mpa-info-panel" role="complementary" aria-label="MPA Details">
+    <div class="panel-header">
+        <h3><i class="bi bi-info-circle" aria-hidden="true"></i> MPA Details</h3>
     </div>
-    <div class="card-body">
+
+    <div class="panel-body">
         @if (SelectedMpaId is null)
         {
-            <p class="text-muted">Select a Marine Protected Area from the list to view details.</p>
+            <div class="empty-state">
+                <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                <p>Select a Marine Protected Area from the map or list to view details.</p>
+            </div>
         }
         else if (_loading)
         {
-            <div class="d-flex justify-content-center">
-                <div class="spinner-border spinner-border-sm text-primary" role="status">
-                    <span class="visually-hidden">Loading...</span>
+            <div class="loading-state" aria-live="polite">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading MPA details...</span>
                 </div>
             </div>
         }
         else if (_detail is not null)
         {
-            <h5 class="card-title">@_detail.Name</h5>
-            @if (!string.IsNullOrEmpty(_detail.LocalName))
-            {
-                <p class="text-muted mb-2"><em>@_detail.LocalName</em></p>
-            }
-
-            <dl class="row small">
-                <dt class="col-5">Status</dt>
-                <dd class="col-7">
-                    <span class="badge bg-success">@_detail.Status</span>
-                </dd>
-
-                <dt class="col-5">Protection</dt>
-                <dd class="col-7">
+            @* MPA Header *@
+            <div class="mpa-header">
+                <h4>@_detail.Name</h4>
+                @if (!string.IsNullOrEmpty(_detail.LocalName))
+                {
+                    <p class="local-name">@_detail.LocalName</p>
+                }
+                <div class="mpa-badges">
+                    <span class="badge badge-status">@_detail.Status</span>
                     <span class="badge @GetProtectionBadgeClass(_detail.ProtectionLevel)">
-                        @_detail.ProtectionLevel
+                        @GetProtectionLabel(_detail.ProtectionLevel)
                     </span>
-                </dd>
+                </div>
+            </div>
 
-                <dt class="col-5">Island Group</dt>
-                <dd class="col-7">@_detail.IslandGroup</dd>
-
-                <dt class="col-5">Area</dt>
-                <dd class="col-7">@_detail.AreaSquareKm.ToString("N1") km²</dd>
-
+            @* Quick Stats *@
+            <div class="mpa-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Island Group</span>
+                    <span class="stat-value">@_detail.IslandGroup</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Area</span>
+                    <span class="stat-value font-mono">@_detail.AreaSquareKm.ToString("N1") km²</span>
+                </div>
                 @if (_detail.DesignationDate.HasValue)
                 {
-                    <dt class="col-5">Designated</dt>
-                    <dd class="col-7">@_detail.DesignationDate.Value.Year</dd>
+                    <div class="stat-item">
+                        <span class="stat-label">Designated</span>
+                        <span class="stat-value">@_detail.DesignationDate.Value.Year</span>
+                    </div>
                 }
-
                 @if (!string.IsNullOrEmpty(_detail.ManagingAuthority))
                 {
-                    <dt class="col-5">Manager</dt>
-                    <dd class="col-7">@_detail.ManagingAuthority</dd>
+                    <div class="stat-item">
+                        <span class="stat-label">Manager</span>
+                        <span class="stat-value">@_detail.ManagingAuthority</span>
+                    </div>
                 }
-
-                <dt class="col-5">Reefs</dt>
-                <dd class="col-7">@_detail.ReefCount tracked</dd>
-            </dl>
-
-            @* Coral Bleaching Status Section *@
-            <hr />
-            <h6 class="mb-3"><i class="bi bi-thermometer-half text-danger"></i> Coral Bleaching Status</h6>
-
-            @if (_bleachingLoading)
-            {
-                <div class="text-center py-2">
-                    <div class="spinner-border spinner-border-sm text-warning" role="status">
-                        <span class="visually-hidden">Loading bleaching data...</span>
-                    </div>
-                    <small class="text-muted d-block mt-1">Loading NOAA data...</small>
+                <div class="stat-item">
+                    <span class="stat-label">Tracked Reefs</span>
+                    <span class="stat-value">@_detail.ReefCount</span>
                 </div>
-            }
-            else if (_bleachingError)
-            {
-                <div class="alert alert-warning py-2 small mb-2">
-                    <i class="bi bi-exclamation-triangle"></i> @_bleachingErrorMessage
-                </div>
-                <button class="btn btn-sm btn-outline-primary" @onclick="RetryBleachingDataAsync">
-                    <i class="bi bi-arrow-clockwise"></i> Retry
-                </button>
-            }
-            else if (_bleachingData is not null)
-            {
-                <div class="row g-2 mb-3">
-                    <div class="col-6">
-                        <div class="card bg-light h-100">
-                            <div class="card-body py-2 px-3 text-center">
-                                <small class="text-muted d-block">Sea Surface Temp</small>
-                                <strong class="fs-5">@_bleachingData.SeaSurfaceTemperature.ToString("F1")°C</strong>
-                                @if (_bleachingData.SstAnomaly > 0)
-                                {
-                                    <small class="text-danger d-block">+@_bleachingData.SstAnomaly.ToString("F1")° anomaly</small>
-                                }
-                                else if (_bleachingData.SstAnomaly < 0)
-                                {
-                                    <small class="text-info d-block">@_bleachingData.SstAnomaly.ToString("F1")° anomaly</small>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="card bg-light h-100">
-                            <div class="card-body py-2 px-3 text-center">
-                                <small class="text-muted d-block">Degree Heating Week</small>
-                                <strong class="fs-5 @GetDhwTextClass(_bleachingData.DegreeHeatingWeek)">
-                                    @_bleachingData.DegreeHeatingWeek.ToString("F1")
-                                </strong>
-                                <small class="text-muted d-block">°C-weeks</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+            </div>
 
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>Alert Level:</span>
-                    <span class="badge @GetAlertBadgeClass(_bleachingData.AlertLevel)">
-                        @GetAlertLevelName(_bleachingData.AlertLevel)
-                    </span>
-                </div>
+            @* US-2.3.3: Live Data Section - Coral Bleaching Status *@
+            <section class="live-data-section" aria-labelledby="bleaching-heading">
+                <h5 id="bleaching-heading">
+                    <i class="bi bi-thermometer-high" aria-hidden="true"></i>
+                    Coral Bleaching Status
+                </h5>
 
-                @if (_bleachingData.HotSpot.HasValue && _bleachingData.HotSpot.Value > 0)
+                @if (_bleachingLoading)
                 {
-                    <div class="alert alert-warning py-2 mb-2 small">
-                        <i class="bi bi-exclamation-triangle-fill"></i>
-                        HotSpot detected: +@_bleachingData.HotSpot.Value.ToString("F1")°C above threshold
+                    <div class="loading-indicator" aria-live="polite">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading bleaching data...</span>
+                        </div>
+                        <span>Loading NOAA data...</span>
                     </div>
                 }
+                else if (_bleachingError)
+                {
+                    <div class="error-state" role="alert">
+                        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                        <span>@_bleachingErrorMessage</span>
+                        <button class="btn-retry" @onclick="RetryBleachingDataAsync" aria-label="Retry loading bleaching data">
+                            <i class="bi bi-arrow-clockwise"></i> Retry
+                        </button>
+                    </div>
+                }
+                else if (_bleachingData is not null)
+                {
+                    @* Live Data Cards *@
+                    <div class="live-data-grid">
+                        <div class="live-data-card">
+                            <span class="data-label">Sea Surface Temp</span>
+                            <span class="data-value">@_bleachingData.SeaSurfaceTemperature.ToString("F1")°C</span>
+                            @if (_bleachingData.SstAnomaly != 0)
+                            {
+                                <span class="data-anomaly @(_bleachingData.SstAnomaly > 0 ? "anomaly-high" : "anomaly-low")">
+                                    @(_bleachingData.SstAnomaly > 0 ? "+" : "")@_bleachingData.SstAnomaly.ToString("F1")° anomaly
+                                </span>
+                            }
+                        </div>
+                        <div class="live-data-card">
+                            <span class="data-label">Degree Heating Week</span>
+                            <span class="data-value @GetDhwClass(_bleachingData.DegreeHeatingWeek)">
+                                @_bleachingData.DegreeHeatingWeek.ToString("F1")
+                            </span>
+                            <span class="data-unit">°C-weeks</span>
+                        </div>
+                    </div>
 
-                <small class="text-muted d-block">
-                    <i class="bi bi-clock"></i> Data from @_bleachingData.Date.ToString("yyyy-MM-dd")
-                </small>
-                <small class="text-muted d-block">
-                    <i class="bi bi-geo-alt"></i> @_detail.CentroidLatitude.ToString("F2")°N, @Math.Abs(_detail.CentroidLongitude).ToString("F2")°W
-                </small>
-            }
-            else
-            {
-                <div class="alert alert-secondary py-2 small">
-                    <i class="bi bi-info-circle"></i> Bleaching data unavailable for this location
-                </div>
-            }
+                    @* US-2.3.2: Alert Badge Integration *@
+                    <div class="alert-status">
+                        <span class="alert-label">Alert Level:</span>
+                        <AlertBadge Level="@_bleachingData.AlertLevel" Size="AlertBadge.BadgeSize.Normal" />
+                    </div>
 
-            @* Historical DHW Trend Section *@
+                    @if (_bleachingData.HotSpot.HasValue && _bleachingData.HotSpot.Value > 0)
+                    {
+                        <div class="hotspot-warning" role="alert">
+                            <i class="bi bi-exclamation-octagon-fill" aria-hidden="true"></i>
+                            <span>HotSpot detected: +@_bleachingData.HotSpot.Value.ToString("F1")°C above threshold</span>
+                        </div>
+                    }
+
+                    <div class="data-meta">
+                        <small>
+                            <i class="bi bi-clock" aria-hidden="true"></i> @_bleachingData.Date.ToString("yyyy-MM-dd")
+                        </small>
+                        <small>
+                            <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                            @_detail.CentroidLatitude.ToString("F2")°N, @Math.Abs(_detail.CentroidLongitude).ToString("F2")°W
+                        </small>
+                    </div>
+                }
+                else
+                {
+                    <div class="no-data-state">
+                        <i class="bi bi-dash-circle" aria-hidden="true"></i>
+                        <span>Bleaching data unavailable</span>
+                    </div>
+                }
+            </section>
+
+            @* DHW Trend Section *@
             @if (_historyLoading)
             {
-                <hr />
-                <div class="text-center py-2">
-                    <div class="spinner-border spinner-border-sm text-secondary" role="status">
-                        <span class="visually-hidden">Loading history...</span>
+                <section class="trend-section">
+                    <div class="loading-indicator" aria-live="polite">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading trend data...</span>
+                        </div>
+                        <span>Loading trend data...</span>
                     </div>
-                    <small class="text-muted d-block mt-1">Loading trend data...</small>
-                </div>
+                </section>
             }
             else if (_historyData?.Count > 1)
             {
-                <hr />
-                <h6 class="mb-2">
-                    <i class="bi bi-graph-up"></i> 30-Day DHW Trend
-                </h6>
-                <DhwSparkline Data="@_historyData" Height="60" ShowLegend="true" />
-                <div class="d-flex justify-content-between small text-muted mt-1">
-                    <span>@_historyData.First().Date.ToString("MMM d")</span>
-                    <span>@_historyData.Last().Date.ToString("MMM d")</span>
-                </div>
-                @if (!string.IsNullOrEmpty(GetTrendIndicator().text))
-                {
-                    <div class="mt-2">
-                        <span class="badge @GetTrendIndicator().badgeClass">
-                            <i class="bi @GetTrendIndicator().icon"></i> @GetTrendIndicator().text
-                        </span>
+                <section class="trend-section" aria-labelledby="trend-heading">
+                    <h5 id="trend-heading">
+                        <i class="bi bi-graph-up" aria-hidden="true"></i>
+                        30-Day DHW Trend
+                    </h5>
+                    <DhwSparkline Data="@_historyData" Height="60" ShowLegend="true" />
+                    <div class="trend-dates">
+                        <span>@_historyData.First().Date.ToString("MMM d")</span>
+                        <span>@_historyData.Last().Date.ToString("MMM d")</span>
                     </div>
-                }
+                    @if (!string.IsNullOrEmpty(GetTrendIndicator().text))
+                    {
+                        <div class="trend-badge">
+                            <span class="badge @GetTrendIndicator().badgeClass">
+                                <i class="bi @GetTrendIndicator().icon" aria-hidden="true"></i>
+                                @GetTrendIndicator().text
+                            </span>
+                        </div>
+                    }
+                </section>
             }
             else if (_historyData?.Count == 1)
             {
-                <hr />
-                <div class="alert alert-info py-2 small mb-0">
-                    <i class="bi bi-info-circle"></i> Only 1 day of historical data available. Trend chart requires at least 2 days.
+                <section class="trend-section">
+                    <div class="no-data-state">
+                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        <span>Insufficient data for trend chart</span>
+                    </div>
+                </section>
+            }
+
+            @* Description *@
+            @if (!string.IsNullOrEmpty(_detail.Description))
+            {
+                <section class="description-section">
+                    <p>@_detail.Description</p>
+                </section>
+            }
+
+            @* WDPA Link *@
+            @if (!string.IsNullOrEmpty(_detail.WdpaId))
+            {
+                <div class="wdpa-id">
+                    <small>WDPA ID: @_detail.WdpaId</small>
                 </div>
             }
 
-            @if (!string.IsNullOrEmpty(_detail.Description))
-            {
-                <hr />
-                <p class="small">@_detail.Description</p>
-            }
-
-            @if (!string.IsNullOrEmpty(_detail.WdpaId))
-            {
-                <hr />
-                <p class="small text-muted mb-0">
-                    WDPA ID: @_detail.WdpaId
-                </p>
-            }
-
-            <hr />
-            <small class="text-muted">
-                <a href="https://coralreefwatch.noaa.gov" target="_blank" class="text-decoration-none">
-                    <i class="bi bi-box-arrow-up-right"></i> NOAA Coral Reef Watch
+            @* Data Attribution *@
+            <div class="attribution">
+                <a href="https://coralreefwatch.noaa.gov" target="_blank" rel="noopener noreferrer">
+                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                    NOAA Coral Reef Watch
                 </a>
-            </small>
+            </div>
         }
         else
         {
-            <p class="text-danger">Failed to load MPA details.</p>
+            <div class="error-state" role="alert">
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <span>Failed to load MPA details</span>
+            </div>
         }
     </div>
 </div>
+
+<style>
+    .mpa-info-panel {
+        background: var(--color-surface-alt, #0C1B33);
+        border-radius: var(--radius-base, 14px);
+        border: 1px solid var(--color-border, rgba(255,255,255,0.18));
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--color-border);
+        background: rgba(46, 227, 255, 0.05);
+    }
+
+    .panel-header h3 {
+        font-size: 0.9375rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--color-text, #F5FBFF);
+    }
+
+    .panel-header h3 i {
+        color: var(--color-primary, #2EE3FF);
+    }
+
+    .panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+    }
+
+    /* Empty and Loading States */
+    .empty-state,
+    .loading-state,
+    .no-data-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        text-align: center;
+        color: var(--color-text-muted);
+    }
+
+    .empty-state i,
+    .no-data-state i {
+        font-size: 2.5rem;
+        margin-bottom: 0.75rem;
+        opacity: 0.5;
+    }
+
+    .empty-state p {
+        font-size: 0.875rem;
+        margin: 0;
+    }
+
+    /* MPA Header */
+    .mpa-header {
+        margin-bottom: 1rem;
+    }
+
+    .mpa-header h4 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem;
+        color: var(--color-text);
+    }
+
+    .local-name {
+        font-size: 0.8125rem;
+        font-style: italic;
+        color: var(--color-text-muted);
+        margin: 0 0 0.5rem;
+    }
+
+    .mpa-badges {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .badge-status {
+        background: rgba(93, 226, 133, 0.2);
+        color: #5DE285;
+    }
+
+    .badge-notake {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+
+    .badge-high {
+        background: rgba(253, 126, 20, 0.2);
+        color: #fd7e14;
+    }
+
+    .badge-light {
+        background: rgba(13, 202, 240, 0.2);
+        color: #0dcaf0;
+    }
+
+    /* MPA Stats */
+    .mpa-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .stat-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+    }
+
+    .stat-label {
+        font-size: 0.6875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-muted);
+    }
+
+    .stat-value {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--color-text);
+    }
+
+    .font-mono {
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Live Data Section */
+    .live-data-section,
+    .trend-section {
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .live-data-section h5,
+    .trend-section h5 {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        margin: 0 0 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--color-text);
+    }
+
+    .live-data-section h5 i {
+        color: var(--color-error, #FB7A6A);
+    }
+
+    .trend-section h5 i {
+        color: var(--color-primary, #2EE3FF);
+    }
+
+    /* Loading Indicator */
+    .loading-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        font-size: 0.8125rem;
+        color: var(--color-text-muted);
+    }
+
+    .loading-indicator .spinner-border {
+        width: 1rem;
+        height: 1rem;
+        border-width: 2px;
+    }
+
+    /* Error State */
+    .error-state {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background: rgba(251, 122, 106, 0.1);
+        border-radius: 6px;
+        font-size: 0.8125rem;
+        color: var(--color-error, #FB7A6A);
+    }
+
+    .btn-retry {
+        margin-left: auto;
+        padding: 0.25rem 0.5rem;
+        background: transparent;
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        color: inherit;
+        font-size: 0.75rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .btn-retry:hover {
+        background: rgba(251, 122, 106, 0.1);
+    }
+
+    /* Live Data Grid */
+    .live-data-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .live-data-card {
+        background: var(--color-surface, #050C1A);
+        border-radius: 8px;
+        padding: 0.75rem;
+        text-align: center;
+    }
+
+    .data-label {
+        display: block;
+        font-size: 0.6875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--color-text-muted);
+        margin-bottom: 0.25rem;
+    }
+
+    .data-value {
+        display: block;
+        font-size: 1.25rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--color-text);
+    }
+
+    .data-value.dhw-critical {
+        color: var(--color-error, #FB7A6A);
+    }
+
+    .data-value.dhw-warning {
+        color: var(--color-warning, #F7C549);
+    }
+
+    .data-value.dhw-watch {
+        color: var(--color-primary, #2EE3FF);
+    }
+
+    .data-value.dhw-safe {
+        color: var(--color-success, #5DE285);
+    }
+
+    .data-anomaly {
+        display: block;
+        font-size: 0.6875rem;
+        margin-top: 0.25rem;
+    }
+
+    .data-anomaly.anomaly-high {
+        color: var(--color-error, #FB7A6A);
+    }
+
+    .data-anomaly.anomaly-low {
+        color: var(--color-primary, #2EE3FF);
+    }
+
+    .data-unit {
+        display: block;
+        font-size: 0.6875rem;
+        color: var(--color-text-muted);
+    }
+
+    /* Alert Status */
+    .alert-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+
+    .alert-label {
+        font-size: 0.8125rem;
+        color: var(--color-text-muted);
+    }
+
+    /* HotSpot Warning */
+    .hotspot-warning {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: rgba(251, 122, 106, 0.15);
+        border-radius: 6px;
+        border-left: 3px solid var(--color-error);
+        font-size: 0.8125rem;
+        color: var(--color-error, #FB7A6A);
+        margin-bottom: 0.75rem;
+    }
+
+    /* Data Meta */
+    .data-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .data-meta small {
+        font-size: 0.6875rem;
+        color: var(--color-text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    /* Trend Section */
+    .trend-dates {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.25rem;
+        font-size: 0.6875rem;
+        color: var(--color-text-muted);
+    }
+
+    .trend-badge {
+        margin-top: 0.5rem;
+    }
+
+    .trend-badge .badge {
+        font-size: 0.75rem;
+    }
+
+    /* Description */
+    .description-section {
+        margin-bottom: 1rem;
+    }
+
+    .description-section p {
+        font-size: 0.8125rem;
+        color: var(--color-text-muted);
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    /* WDPA ID */
+    .wdpa-id {
+        margin-bottom: 0.75rem;
+    }
+
+    .wdpa-id small {
+        font-size: 0.6875rem;
+        color: var(--color-text-muted);
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Attribution */
+    .attribution {
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--color-border);
+    }
+
+    .attribution a {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        color: var(--color-primary, #2EE3FF);
+        text-decoration: none;
+    }
+
+    .attribution a:hover {
+        text-decoration: underline;
+    }
+
+    /* Scrollbar styling */
+    .panel-body::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .panel-body::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .panel-body::-webkit-scrollbar-thumb {
+        background: var(--color-border);
+        border-radius: 3px;
+    }
+
+    .panel-body::-webkit-scrollbar-thumb:hover {
+        background: var(--color-text-muted);
+    }
+</style>
 
 @code {
     [Parameter]
@@ -238,7 +670,6 @@
             _loadedMpaId = SelectedMpaId;
             _loading = false;
 
-            // Load bleaching data and history asynchronously after MPA details
             await Task.WhenAll(
                 LoadBleachingDataAsync(),
                 LoadHistoryDataAsync());
@@ -265,9 +696,7 @@
             _bleachingErrorMessage = "";
             StateHasChanged();
 
-            // Use a 15-second timeout for better UX
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-
             var yesterday = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
             _bleachingData = await CrwClient.GetBleachingDataAsync(
                 _detail.CentroidLongitude,
@@ -275,7 +704,6 @@
                 yesterday,
                 cts.Token);
 
-            // If we got no data, show a helpful message
             if (_bleachingData is null)
             {
                 _bleachingError = true;
@@ -284,14 +712,12 @@
         }
         catch (OperationCanceledException)
         {
-            Console.WriteLine("Bleaching data request timed out");
             _bleachingError = true;
             _bleachingErrorMessage = "Request timed out. NOAA service may be slow.";
             _bleachingData = null;
         }
-        catch (HttpRequestException ex)
+        catch (HttpRequestException)
         {
-            Console.WriteLine($"HTTP error loading bleaching data: {ex.Message}");
             _bleachingError = true;
             _bleachingErrorMessage = "Unable to reach NOAA service";
             _bleachingData = null;
@@ -317,37 +743,26 @@
 
     private string GetProtectionBadgeClass(string level) => level switch
     {
-        "NoTake" => "bg-danger",
-        "HighlyProtected" => "bg-warning text-dark",
-        "LightlyProtected" => "bg-info",
-        _ => "bg-secondary"
+        "NoTake" => "badge-notake",
+        "HighlyProtected" => "badge-high",
+        "LightlyProtected" => "badge-light",
+        _ => ""
     };
 
-    private string GetAlertLevelName(int level) => level switch
+    private string GetProtectionLabel(string level) => level switch
     {
-        0 => "No Stress",
-        1 => "Watch",
-        2 => "Warning",
-        3 => "Alert Level 1",
-        4 => "Alert Level 2",
-        _ => $"Alert Level {level - 2}"
+        "NoTake" => "No-Take Zone",
+        "HighlyProtected" => "Highly Protected",
+        "LightlyProtected" => "Lightly Protected",
+        _ => level
     };
 
-    private string GetAlertBadgeClass(int level) => level switch
+    private string GetDhwClass(double dhw) => dhw switch
     {
-        0 => "bg-success",
-        1 => "bg-info",
-        2 => "bg-warning text-dark",
-        >= 3 => "bg-danger",
-        _ => "bg-secondary"
-    };
-
-    private string GetDhwTextClass(double dhw) => dhw switch
-    {
-        >= 8 => "text-danger",
-        >= 4 => "text-warning",
-        >= 1 => "text-info",
-        _ => "text-success"
+        >= 8 => "dhw-critical",
+        >= 4 => "dhw-warning",
+        >= 1 => "dhw-watch",
+        _ => "dhw-safe"
     };
 
     private async Task LoadHistoryDataAsync()
@@ -378,7 +793,6 @@
         if (_historyData is null || _historyData.Count < 7)
             return (string.Empty, string.Empty, string.Empty);
 
-        // Compare last 7 days average to previous 7 days
         var recentDays = _historyData.TakeLast(7).ToList();
         var olderDays = _historyData.SkipLast(7).TakeLast(7).ToList();
 

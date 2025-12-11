@@ -1,0 +1,303 @@
+@* US-2.1.2: DataCard Component - Reusable KPI card with icon, value, trend *@
+<div class="data-card @StatusClass" role="region" aria-label="@Label statistic">
+    <div class="data-card-header">
+        <div class="data-card-icon" aria-hidden="true">
+            <i class="bi @Icon"></i>
+        </div>
+        <span class="data-card-label">@Label</span>
+    </div>
+
+    <div class="data-card-body">
+        @if (Loading)
+        {
+            <div class="data-card-skeleton" aria-label="Loading">
+                <div class="skeleton-value"></div>
+                <div class="skeleton-trend"></div>
+            </div>
+        }
+        else if (HasError)
+        {
+            <div class="data-card-error">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>@(ErrorMessage ?? "Error")</span>
+            </div>
+        }
+        else
+        {
+            <div class="data-card-value">
+                <span class="value" aria-label="@Value @Unit">@Value</span>
+                @if (!string.IsNullOrEmpty(Unit))
+                {
+                    <span class="unit">@Unit</span>
+                }
+            </div>
+
+            @if (ShowTrend && !string.IsNullOrEmpty(TrendValue))
+            {
+                <div class="data-card-trend @TrendClass"
+                     role="status"
+                     aria-label="Trend: @TrendLabel, @TrendValue">
+                    <i class="bi @TrendIcon" aria-hidden="true"></i>
+                    <span class="trend-value">@TrendValue</span>
+                    @if (!string.IsNullOrEmpty(TrendLabel))
+                    {
+                        <span class="trend-label">@TrendLabel</span>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    @if (ChildContent != null)
+    {
+        <div class="data-card-footer">
+            @ChildContent
+        </div>
+    }
+</div>
+
+<style>
+    .data-card {
+        background: var(--color-surface-alt, #0C1B33);
+        border-radius: var(--radius-base, 14px);
+        padding: 1rem;
+        border: 1px solid var(--color-border, rgba(255,255,255,0.18));
+        transition: box-shadow var(--transition-base, 0.35s ease),
+                    border-color var(--transition-base, 0.35s ease);
+    }
+
+    .data-card:hover {
+        border-color: rgba(255, 255, 255, 0.25);
+        box-shadow: var(--shadow-soft, 0 14px 40px rgba(6, 10, 30, 0.55));
+    }
+
+    /* Status-based glow effects */
+    .data-card.status-success {
+        border-color: rgba(93, 226, 133, 0.3);
+    }
+    .data-card.status-success:hover {
+        box-shadow: 0 0 20px rgba(93, 226, 133, 0.15);
+    }
+
+    .data-card.status-warning {
+        border-color: rgba(247, 197, 73, 0.3);
+    }
+    .data-card.status-warning:hover {
+        box-shadow: 0 0 20px rgba(247, 197, 73, 0.15);
+    }
+
+    .data-card.status-error {
+        border-color: rgba(251, 122, 106, 0.3);
+    }
+    .data-card.status-error:hover {
+        box-shadow: 0 0 20px rgba(251, 122, 106, 0.15);
+    }
+
+    .data-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .data-card-icon {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--gradient-primary, linear-gradient(135deg, #2EE3FF, #20B7CC));
+        border-radius: 8px;
+        font-size: 1rem;
+        color: var(--color-surface, #050C1A);
+    }
+
+    .data-card-label {
+        font-size: 0.8125rem;
+        color: var(--color-text-muted, rgba(245,251,255,0.7));
+        font-weight: 500;
+    }
+
+    .data-card-body {
+        min-height: 3rem;
+    }
+
+    .data-card-value {
+        display: flex;
+        align-items: baseline;
+        gap: 0.25rem;
+    }
+
+    .data-card-value .value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--color-text, #F5FBFF);
+        line-height: 1.2;
+    }
+
+    .data-card-value .unit {
+        font-size: 0.875rem;
+        color: var(--color-text-muted, rgba(245,251,255,0.7));
+        font-weight: 500;
+    }
+
+    .data-card-trend {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .data-card-trend i {
+        font-size: 0.875rem;
+    }
+
+    .data-card-trend.trend-up {
+        color: var(--color-success, #5DE285);
+    }
+
+    .data-card-trend.trend-down {
+        color: var(--color-error, #FB7A6A);
+    }
+
+    .data-card-trend.trend-stable {
+        color: var(--color-text-muted, rgba(245,251,255,0.7));
+    }
+
+    .trend-value {
+        font-weight: 600;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .trend-label {
+        color: var(--color-text-muted, rgba(245,251,255,0.7));
+    }
+
+    /* Loading skeleton */
+    .data-card-skeleton {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .skeleton-value {
+        height: 2rem;
+        width: 60%;
+        background: linear-gradient(90deg, var(--color-surface-alt) 25%, rgba(255,255,255,0.1) 50%, var(--color-surface-alt) 75%);
+        background-size: 200% 100%;
+        animation: skeleton-pulse 1.5s ease-in-out infinite;
+        border-radius: 4px;
+    }
+
+    .skeleton-trend {
+        height: 1rem;
+        width: 40%;
+        background: linear-gradient(90deg, var(--color-surface-alt) 25%, rgba(255,255,255,0.1) 50%, var(--color-surface-alt) 75%);
+        background-size: 200% 100%;
+        animation: skeleton-pulse 1.5s ease-in-out infinite;
+        border-radius: 4px;
+    }
+
+    @@keyframes skeleton-pulse {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Error state */
+    .data-card-error {
+        color: var(--color-error, #FB7A6A);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .data-card-footer {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--color-border, rgba(255,255,255,0.18));
+    }
+
+    /* Light theme adjustments */
+    :root[data-theme='light'] .data-card {
+        background: var(--color-surface-alt, #FFFFFF);
+    }
+
+    :root[data-theme='light'] .data-card-icon {
+        color: #FFFFFF;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public string Icon { get; set; } = "bi-graph-up";
+
+    [Parameter]
+    public string Label { get; set; } = "Metric";
+
+    [Parameter]
+    public string Value { get; set; } = "0";
+
+    [Parameter]
+    public string? Unit { get; set; }
+
+    /// <summary>
+    /// Trend direction: Up, Down, Stable
+    /// </summary>
+    [Parameter]
+    public Trend TrendDirection { get; set; } = Trend.Stable;
+
+    [Parameter]
+    public string? TrendValue { get; set; }
+
+    [Parameter]
+    public string? TrendLabel { get; set; }
+
+    [Parameter]
+    public bool ShowTrend { get; set; } = true;
+
+    /// <summary>
+    /// Status for visual styling: Default, Success, Warning, Error
+    /// </summary>
+    [Parameter]
+    public Status CardStatus { get; set; } = Status.Default;
+
+    [Parameter]
+    public bool Loading { get; set; } = false;
+
+    [Parameter]
+    public bool HasError { get; set; } = false;
+
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string StatusClass => CardStatus switch
+    {
+        Status.Success => "status-success",
+        Status.Warning => "status-warning",
+        Status.Error => "status-error",
+        _ => ""
+    };
+
+    private string TrendClass => TrendDirection switch
+    {
+        Trend.Up => "trend-up",
+        Trend.Down => "trend-down",
+        _ => "trend-stable"
+    };
+
+    private string TrendIcon => TrendDirection switch
+    {
+        Trend.Up => "bi-arrow-up-short",
+        Trend.Down => "bi-arrow-down-short",
+        _ => "bi-dash"
+    };
+
+    public enum Trend { Up, Down, Stable }
+    public enum Status { Default, Success, Warning, Error }
+}

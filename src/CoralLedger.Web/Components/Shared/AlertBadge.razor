@@ -1,0 +1,241 @@
+@* US-2.3.2: AlertBadge Component - Alert level badges with icons for bleaching alerts *@
+<span class="alert-badge level-@Level @SizeClass @(Pulse && Level >= 4 ? "pulsing" : "")"
+      role="status"
+      aria-label="@AriaLabel"
+      title="@TooltipText">
+    <i class="bi @LevelIcon" aria-hidden="true"></i>
+    <span class="badge-text">@BadgeText</span>
+</span>
+
+@if (ShowTooltip)
+{
+    <span class="alert-badge-tooltip">@TooltipText</span>
+}
+
+<style>
+    .alert-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        transition: transform 0.2s ease;
+    }
+
+    .alert-badge:hover {
+        transform: scale(1.02);
+    }
+
+    /* Size variants */
+    .alert-badge.size-small {
+        padding: 0.125rem 0.375rem;
+        font-size: 0.6875rem;
+    }
+
+    .alert-badge.size-small i {
+        font-size: 0.75rem;
+    }
+
+    .alert-badge.size-large {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .alert-badge.size-large i {
+        font-size: 1.125rem;
+    }
+
+    /* Alert Level 0: No Stress (Green) */
+    .alert-badge.level-0 {
+        background: rgba(93, 226, 133, 0.2);
+        color: #5DE285;
+        border: 1px solid rgba(93, 226, 133, 0.3);
+    }
+
+    /* Alert Level 1: Watch (Blue/Teal) */
+    .alert-badge.level-1 {
+        background: rgba(46, 227, 255, 0.2);
+        color: #2EE3FF;
+        border: 1px solid rgba(46, 227, 255, 0.3);
+    }
+
+    /* Alert Level 2: Warning (Yellow) */
+    .alert-badge.level-2 {
+        background: rgba(247, 197, 73, 0.2);
+        color: #F7C549;
+        border: 1px solid rgba(247, 197, 73, 0.3);
+    }
+
+    /* Alert Level 3: Alert 1 (Orange) */
+    .alert-badge.level-3 {
+        background: rgba(253, 126, 20, 0.2);
+        color: #FD7E14;
+        border: 1px solid rgba(253, 126, 20, 0.3);
+    }
+
+    /* Alert Level 4: Alert 2 (Red-Orange) */
+    .alert-badge.level-4 {
+        background: rgba(251, 122, 106, 0.2);
+        color: #FB7A6A;
+        border: 1px solid rgba(251, 122, 106, 0.3);
+    }
+
+    /* Alert Level 5: Mass Bleaching (Deep Red) */
+    .alert-badge.level-5 {
+        background: rgba(220, 53, 69, 0.25);
+        color: #FF4D5E;
+        border: 1px solid rgba(220, 53, 69, 0.4);
+    }
+
+    /* Pulsing animation for levels 4-5 */
+    .alert-badge.pulsing {
+        animation: badge-pulse 2s ease-in-out infinite;
+    }
+
+    @@keyframes badge-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    /* Reduced motion support */
+    @@media (prefers-reduced-motion: reduce) {
+        .alert-badge.pulsing {
+            animation: none;
+        }
+    }
+
+    /* Tooltip */
+    .alert-badge-tooltip {
+        position: absolute;
+        background: var(--color-surface-alt, #0C1B33);
+        color: var(--color-text, #F5FBFF);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 400;
+        white-space: nowrap;
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+        border: 1px solid var(--color-border, rgba(255,255,255,0.18));
+        box-shadow: var(--shadow-soft);
+    }
+
+    .alert-badge:hover + .alert-badge-tooltip {
+        opacity: 1;
+    }
+
+    /* Light theme */
+    :root[data-theme='light'] .alert-badge.level-0 {
+        background: rgba(29, 159, 120, 0.15);
+        color: #1D9F78;
+    }
+
+    :root[data-theme='light'] .alert-badge.level-1 {
+        background: rgba(26, 107, 255, 0.15);
+        color: #1A6BFF;
+    }
+
+    :root[data-theme='light'] .alert-badge.level-2 {
+        background: rgba(232, 166, 0, 0.15);
+        color: #E8A600;
+    }
+
+    :root[data-theme='light'] .alert-badge.level-3 {
+        background: rgba(253, 126, 20, 0.15);
+        color: #D96800;
+    }
+
+    :root[data-theme='light'] .alert-badge.level-4 {
+        background: rgba(218, 63, 63, 0.15);
+        color: #DA3F3F;
+    }
+
+    :root[data-theme='light'] .alert-badge.level-5 {
+        background: rgba(180, 30, 30, 0.2);
+        color: #B41E1E;
+    }
+</style>
+
+@code {
+    /// <summary>
+    /// Alert level (0-5 for NOAA bleaching alerts)
+    /// </summary>
+    [Parameter]
+    public int Level { get; set; } = 0;
+
+    /// <summary>
+    /// Badge size: Small, Normal, Large
+    /// </summary>
+    [Parameter]
+    public BadgeSize Size { get; set; } = BadgeSize.Normal;
+
+    /// <summary>
+    /// Show tooltip on hover
+    /// </summary>
+    [Parameter]
+    public bool ShowTooltip { get; set; } = false;
+
+    /// <summary>
+    /// Enable pulsing animation for high alert levels
+    /// </summary>
+    [Parameter]
+    public bool Pulse { get; set; } = true;
+
+    private string SizeClass => Size switch
+    {
+        BadgeSize.Small => "size-small",
+        BadgeSize.Large => "size-large",
+        _ => ""
+    };
+
+    private string LevelIcon => Level switch
+    {
+        0 => "bi-check-circle-fill",
+        1 => "bi-info-circle-fill",
+        2 => "bi-exclamation-triangle-fill",
+        3 => "bi-exclamation-triangle-fill",
+        4 => "bi-exclamation-octagon-fill",
+        5 => "bi-x-octagon-fill",
+        _ => "bi-question-circle"
+    };
+
+    private string BadgeText => Level switch
+    {
+        0 => "No Stress",
+        1 => "Watch",
+        2 => "Warning",
+        3 => "Alert 1",
+        4 => "Alert 2",
+        5 => "Mass Bleaching",
+        _ => $"Level {Level}"
+    };
+
+    private string AriaLabel => Level switch
+    {
+        0 => "No bleaching stress detected",
+        1 => "Bleaching Watch - conditions approaching threshold",
+        2 => "Bleaching Warning - possible bleaching expected",
+        3 => "Alert Level 1 - bleaching expected",
+        4 => "Alert Level 2 - severe bleaching expected",
+        5 => "Mass Bleaching Alert - extreme bleaching conditions",
+        _ => $"Alert Level {Level}"
+    };
+
+    private string TooltipText => Level switch
+    {
+        0 => "No thermal stress. DHW < 0°C-weeks",
+        1 => "Watch: Hotspot detected. Monitor conditions.",
+        2 => "Warning: DHW 0-4°C-weeks. Bleaching possible.",
+        3 => "Alert 1: DHW 4-8°C-weeks. Bleaching likely.",
+        4 => "Alert 2: DHW > 8°C-weeks. Severe bleaching.",
+        5 => "Mass Bleaching: Extended extreme stress.",
+        _ => $"Alert Level {Level}"
+    };
+
+    public enum BadgeSize { Small, Normal, Large }
+}

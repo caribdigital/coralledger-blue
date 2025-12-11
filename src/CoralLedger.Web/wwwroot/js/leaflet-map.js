@@ -3,14 +3,35 @@ window.leafletMap = {
     maps: {},
     mpaLayers: {},
     fishingLayers: {},
+    tileLayers: {},
+    legendControls: {},
+
+    // Tile layer definitions (US-2.2.1: Dark Map Base Layer)
+    tileOptions: {
+        dark: {
+            url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            name: 'Dark (CartoDB)'
+        },
+        light: {
+            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            name: 'Light (OpenStreetMap)'
+        },
+        satellite: {
+            url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+            attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
+            name: 'Satellite'
+        }
+    },
 
     // Check if Leaflet is loaded
     isLeafletReady: function() {
         return typeof L !== 'undefined';
     },
 
-    // Initialize a new map
-    initialize: function (mapId, centerLat, centerLng, zoom) {
+    // Initialize a new map with dark theme support
+    initialize: function (mapId, centerLat, centerLng, zoom, useDarkTheme = true) {
         // Check if Leaflet is loaded
         if (!this.isLeafletReady()) {
             console.error('Leaflet library (L) is not loaded. Make sure leaflet.js is included before leaflet-map.js');
@@ -22,13 +43,36 @@ window.leafletMap = {
 
         const map = L.map(mapId).setView([centerLat, centerLng], zoom);
 
-        // Add OpenStreetMap tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // US-2.2.1: Use CartoDB Dark Matter by default for dark theme
+        const tileConfig = useDarkTheme ? this.tileOptions.dark : this.tileOptions.light;
+        const tileLayer = L.tileLayer(tileConfig.url, {
             maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution: tileConfig.attribution
         }).addTo(map);
 
         this.maps[mapId] = map;
+        this.tileLayers[mapId] = { current: tileLayer, theme: useDarkTheme ? 'dark' : 'light' };
+        return true;
+    },
+
+    // Switch tile layer theme (dark/light/satellite)
+    setTileTheme: function(mapId, theme) {
+        const map = this.maps[mapId];
+        if (!map || !this.tileOptions[theme]) return false;
+
+        // Remove current tile layer
+        if (this.tileLayers[mapId]?.current) {
+            map.removeLayer(this.tileLayers[mapId].current);
+        }
+
+        // Add new tile layer
+        const tileConfig = this.tileOptions[theme];
+        const newLayer = L.tileLayer(tileConfig.url, {
+            maxZoom: 19,
+            attribution: tileConfig.attribution
+        }).addTo(map);
+
+        this.tileLayers[mapId] = { current: newLayer, theme: theme };
         return true;
     },
 
@@ -272,6 +316,86 @@ window.leafletMap = {
         return true;
     },
 
+    // US-2.2.6: Add interactive map legend
+    addLegend: function(mapId, showMpa = true, showFishing = false, showAlerts = false) {
+        const map = this.maps[mapId];
+        if (!map) return false;
+
+        // Remove existing legend
+        if (this.legendControls[mapId]) {
+            map.removeControl(this.legendControls[mapId]);
+        }
+
+        const legend = L.control({ position: 'bottomright' });
+
+        legend.onAdd = function() {
+            const div = L.DomUtil.create('div', 'map-legend');
+            div.setAttribute('role', 'region');
+            div.setAttribute('aria-label', 'Map Legend');
+
+            let html = '<div class="legend-header"><strong>Legend</strong></div>';
+
+            if (showMpa) {
+                html += `
+                    <div class="legend-section">
+                        <div class="legend-title">Protection Levels</div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #dc3545;"></span>
+                            <span class="legend-label">No-Take Zone</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #fd7e14;"></span>
+                            <span class="legend-label">Highly Protected</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: #0dcaf0;"></span>
+                            <span class="legend-label">Lightly Protected</span>
+                        </div>
+                    </div>`;
+            }
+
+            if (showFishing) {
+                html += `
+                    <div class="legend-section">
+                        <div class="legend-title">Fishing Activity</div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #dc3545;"></span>
+                            <span class="legend-label">Last 7 days</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #fd7e14;"></span>
+                            <span class="legend-label">8-14 days</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background: #ffc107;"></span>
+                            <span class="legend-label">15-30 days</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot violation"></span>
+                            <span class="legend-label">MPA Violation</span>
+                        </div>
+                    </div>`;
+            }
+
+            div.innerHTML = html;
+
+            // Prevent map interactions when clicking legend
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.disableScrollPropagation(div);
+
+            return div;
+        };
+
+        legend.addTo(map);
+        this.legendControls[mapId] = legend;
+        return true;
+    },
+
+    // Update legend visibility based on active layers
+    updateLegend: function(mapId, showMpa, showFishing) {
+        return this.addLegend(mapId, showMpa, showFishing);
+    },
+
     // Dispose map
     dispose: function (mapId) {
         if (this.maps[mapId]) {
@@ -279,6 +403,8 @@ window.leafletMap = {
             delete this.maps[mapId];
             delete this.mpaLayers[mapId];
             delete this.fishingLayers[mapId];
+            delete this.tileLayers[mapId];
+            delete this.legendControls[mapId];
         }
     }
 };
