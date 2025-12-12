@@ -2,10 +2,6 @@
 
 @using CoralLedger.Web.Components.Shared
 @using CoralLedger.Web.Client.Components
-@using CoralLedger.Web.Theme
-
-@inject IThemeState ThemeState
-@implements IDisposable
 
 <CoralLedger.Web.Client.Components.OfflineIndicator />
 
@@ -23,17 +19,7 @@
 
     <RadzenBody>
         <RadzenHeader>
-            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" class="rz-px-4 rz-py-2">
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
-                    <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">CoralLedger Blue</RadzenText>
-                    <CoralLedger.Web.Components.Shared.ConnectionStatus PendingCount="@_pendingActions" IsSyncing="@_isSyncing" OnManualSync="HandleManualSyncAsync" />
-                </RadzenStack>
-                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
-                    <ThemeToggle />
-                    <RadzenLink Path="/admin" Text="Admin" />
-                    <RadzenLink Path="https://github.com/caribdigital/coralledgerblue" Text="GitHub" Target="_blank" />
-                </RadzenStack>
-            </RadzenStack>
+            <HeaderBar />
         </RadzenHeader>
 
         <main id="main-content" class="rz-p-4">
@@ -53,42 +39,5 @@
 <script src="js/mobile.js"></script>
 
 @code {
-    private int _pendingActions = 2;
-    private bool _isSyncing;
     private bool _sidebarExpanded = true;
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender)
-        {
-            return;
-        }
-
-        ThemeState.ThemeChanged += OnThemeChanged;
-        await ThemeState.InitializeAsync();
-    }
-
-    private void OnThemeChanged(ThemeMode _) => InvokeAsync(StateHasChanged);
-
-    public void Dispose()
-    {
-        ThemeState.ThemeChanged -= OnThemeChanged;
-    }
-
-    private async Task HandleManualSyncAsync()
-    {
-        if (_isSyncing)
-        {
-            return;
-        }
-
-        _isSyncing = true;
-        StateHasChanged();
-
-        await Task.Delay(700);
-        _pendingActions = Math.Max(0, _pendingActions - 1);
-
-        _isSyncing = false;
-        StateHasChanged();
-    }
 }

@@ -24,9 +24,19 @@
     [Parameter] public EventCallback OnManualSync { get; set; }
 
     private bool IsOnline { get; set; } = true;
+    private bool _justSynced;
+    private int _previousPendingCount;
 
     private string StatusText => IsOnline ? "Online" : "Offline";
-    private string PendingCopy => PendingCount > 0 ? $"{PendingCount} pending actions" : "All caught up";
+    private string PendingCopy
+    {
+        get
+        {
+            if (_justSynced) return "Synced!";
+            if (PendingCount > 0) return $"{PendingCount} pending actions";
+            return "All caught up";
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -40,8 +50,27 @@
             {
                 IsOnline = true;
             }
+            _previousPendingCount = PendingCount;
             StateHasChanged();
         }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Detect when pending count decreased (sync completed)
+        if (!IsSyncing && _previousPendingCount > PendingCount && PendingCount >= 0)
+        {
+            _justSynced = true;
+            _ = ClearSyncedMessageAsync();
+        }
+        _previousPendingCount = PendingCount;
+    }
+
+    private async Task ClearSyncedMessageAsync()
+    {
+        await Task.Delay(1500);
+        _justSynced = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task TriggerSync()

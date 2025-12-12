@@ -1,0 +1,56 @@
+@rendermode InteractiveServer
+@using CoralLedger.Web.Theme
+
+@inject IThemeState ThemeState
+@implements IDisposable
+
+<RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" class="rz-px-4 rz-py-2">
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+        <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">CoralLedger Blue</RadzenText>
+        <ConnectionStatus PendingCount="@_pendingActions" IsSyncing="@_isSyncing" OnManualSync="HandleManualSyncAsync" />
+    </RadzenStack>
+    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+        <ThemeToggle />
+        <RadzenLink Path="/admin" Text="Admin" />
+        <RadzenLink Path="https://github.com/caribdigital/coralledgerblue" Text="GitHub" Target="_blank" />
+    </RadzenStack>
+</RadzenStack>
+
+@code {
+    private int _pendingActions = 2;
+    private bool _isSyncing;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            ThemeState.ThemeChanged += OnThemeChanged;
+            await ThemeState.InitializeAsync();
+        }
+    }
+
+    private void OnThemeChanged(ThemeMode _) => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        ThemeState.ThemeChanged -= OnThemeChanged;
+    }
+
+    private async Task HandleManualSyncAsync()
+    {
+        if (_isSyncing)
+        {
+            return;
+        }
+
+        _isSyncing = true;
+        StateHasChanged();
+
+        // Simulate sync operation
+        await Task.Delay(700);
+        _pendingActions = Math.Max(0, _pendingActions - 1);
+
+        _isSyncing = false;
+        StateHasChanged();
+    }
+}
