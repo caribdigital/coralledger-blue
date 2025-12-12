@@ -1,0 +1,32 @@
+[
+  {
+    "Longitude": -77.8,
+    "Latitude": 24.4,
+    "Date": "2025-11-30",
+    "SeaSurfaceTemperature": 28.5,
+    "SstAnomaly": 1.1,
+    "HotSpot": 0.9,
+    "DegreeHeatingWeek": 6.1,
+    "AlertLevel": 2
+  },
+  {
+    "Longitude": -78.9,
+    "Latitude": 25.0,
+    "Date": "2025-12-01",
+    "SeaSurfaceTemperature": 28.9,
+    "SstAnomaly": 1.4,
+    "HotSpot": 1.3,
+    "DegreeHeatingWeek": 6.8,
+    "AlertLevel": 3
+  },
+  {
+    "Longitude": -79.4,
+    "Latitude": 25.5,
+    "Date": "2025-12-02",
+    "SeaSurfaceTemperature": 27.6,
+    "SstAnomaly": 0.5,
+    "HotSpot": null,
+    "DegreeHeatingWeek": 4.2,
+    "AlertLevel": 1
+  }
+]
