@@ -227,6 +227,54 @@ public class UIImplementationEvidenceTests : PlaywrightFixture
     }
 
     [Test]
+    [Description("Theme Toggle Evidence - Dark and Light mode comparison")]
+    public async Task Evidence_ThemeToggle()
+    {
+        // Test on Dashboard
+        await NavigateToAsync("/");
+        await Task.Delay(3000);
+
+        // Capture dark mode dashboard
+        await CaptureEvidenceAsync("01_Dashboard_DarkMode",
+            "Dashboard in Dark Mode - default theme with dark sidebar and cards");
+
+        // Find and click the theme toggle button
+        var themeButton = Page.Locator("button.theme-toggle, button:has-text('Light mode')").First;
+        if (await themeButton.IsVisibleAsync())
+        {
+            await themeButton.ClickAsync();
+            await Task.Delay(2000); // Wait for theme transition
+
+            // Capture light mode dashboard
+            await CaptureEvidenceAsync("02_Dashboard_LightMode",
+                "Dashboard in Light Mode - light background, visible connection status");
+        }
+
+        // Now test on Map page
+        await NavigateToAsync("/map");
+        await Task.Delay(5000); // Wait for map tiles to load
+
+        // Capture light mode map
+        await CaptureEvidenceAsync("03_Map_LightMode",
+            "Map in Light Mode - OpenStreetMap light tiles");
+
+        // Toggle back to dark mode
+        var darkButton = Page.Locator("button.theme-toggle, button:has-text('Dark mode')").First;
+        if (await darkButton.IsVisibleAsync())
+        {
+            // Capture console logs for debugging
+            Page.Console += (_, msg) => TestContext.Progress.WriteLine($"[Browser Console] {msg.Type}: {msg.Text}");
+
+            await darkButton.ClickAsync();
+            await Task.Delay(5000); // Wait for theme and map tiles to update
+
+            // Capture dark mode map
+            await CaptureEvidenceAsync("04_Map_DarkMode",
+                "Map in Dark Mode - CartoDB dark tiles");
+        }
+    }
+
+    [Test]
     [Description("Full Dashboard Evidence - Complete dark theme UI")]
     public async Task Evidence_FullDashboard()
     {

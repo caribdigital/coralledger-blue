@@ -57,22 +57,33 @@ window.leafletMap = {
 
     // Switch tile layer theme (dark/light/satellite)
     setTileTheme: function(mapId, theme) {
+        console.log('[leaflet-map.js] setTileTheme called:', mapId, theme);
         const map = this.maps[mapId];
-        if (!map || !this.tileOptions[theme]) return false;
+        if (!map) {
+            console.log('[leaflet-map.js] Map not found:', mapId);
+            return false;
+        }
+        if (!this.tileOptions[theme]) {
+            console.log('[leaflet-map.js] Invalid theme:', theme, 'Available:', Object.keys(this.tileOptions));
+            return false;
+        }
 
         // Remove current tile layer
         if (this.tileLayers[mapId]?.current) {
+            console.log('[leaflet-map.js] Removing current tile layer');
             map.removeLayer(this.tileLayers[mapId].current);
         }
 
         // Add new tile layer
         const tileConfig = this.tileOptions[theme];
+        console.log('[leaflet-map.js] Adding tile layer:', tileConfig.name);
         const newLayer = L.tileLayer(tileConfig.url, {
             maxZoom: 19,
             attribution: tileConfig.attribution
         }).addTo(map);
 
         this.tileLayers[mapId] = { current: newLayer, theme: theme };
+        console.log('[leaflet-map.js] Tile theme switched to:', theme);
         return true;
     },
 

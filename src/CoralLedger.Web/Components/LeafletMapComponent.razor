@@ -1,8 +1,11 @@
 @using System.Text.Json
+@using CoralLedger.Web.Theme
 @inject IJSRuntime JS
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
+@inject IThemeState ThemeState
 @implements IAsyncDisposable
+@implements IDisposable
 
 <div class="leaflet-map-container" style="height: calc(100vh - 200px); min-height: 500px; width: 100%; position: relative;">
     @if (_loading)
@@ -179,8 +182,14 @@
             {
                 _dotNetRef = DotNetObjectReference.Create(this);
 
-                // US-2.2.1: Initialize map with dark theme support
-                await JS.InvokeVoidAsync("leafletMap.initialize", _mapId, 24.5, -77.5, 7, UseDarkTheme);
+                // Subscribe to global theme changes
+                ThemeState.ThemeChanged += OnGlobalThemeChanged;
+
+                // US-2.2.1: Initialize map with theme - read directly from localStorage for accuracy
+                var savedTheme = await JS.InvokeAsync<string>("CoralLedgerThemeManager.getMode");
+                var isDark = savedTheme != "light"; // Default to dark if not explicitly light
+                UseDarkTheme = isDark;
+                await JS.InvokeVoidAsync("leafletMap.initialize", _mapId, 24.5, -77.5, 7, isDark);
                 _mapInitialized = true;
 
                 // Load MPA data
@@ -212,6 +221,34 @@
     {
         UseDarkTheme = !UseDarkTheme;
         await JS.InvokeVoidAsync("leafletMap.setTileTheme", _mapId, UseDarkTheme ? "dark" : "light");
+    }
+
+    /// <summary>
+    /// Handle global theme changes from ThemeState
+    /// </summary>
+    private async void OnGlobalThemeChanged(ThemeMode newMode)
+    {
+        if (!_mapInitialized) return;
+
+        var isDark = newMode == ThemeMode.Dark;
+        if (UseDarkTheme != isDark)
+        {
+            UseDarkTheme = isDark;
+            try
+            {
+                await JS.InvokeVoidAsync("leafletMap.setTileTheme", _mapId, isDark ? "dark" : "light");
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to update map theme: {ex.Message}");
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        ThemeState.ThemeChanged -= OnGlobalThemeChanged;
     }
 
     protected override async Task OnParametersSetAsync()

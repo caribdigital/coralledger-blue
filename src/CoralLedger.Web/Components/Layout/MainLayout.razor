@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 
+@using CoralLedger.Web.Components.Shared
 @using CoralLedger.Web.Client.Components
 @using CoralLedger.Web.Theme
 
@@ -25,7 +26,7 @@
             <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween" Gap="1rem" class="rz-px-4 rz-py-2">
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
                     <RadzenText TextStyle="TextStyle.H6" class="rz-m-0">CoralLedger Blue</RadzenText>
-                    <ConnectionStatus PendingCount="@_pendingActions" IsSyncing="@_isSyncing" OnManualSync="HandleManualSyncAsync" />
+                    <CoralLedger.Web.Components.Shared.ConnectionStatus PendingCount="@_pendingActions" IsSyncing="@_isSyncing" OnManualSync="HandleManualSyncAsync" />
                 </RadzenStack>
                 <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
                     <ThemeToggle />
