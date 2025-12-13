@@ -23,6 +23,9 @@ window.CoralLedgerThemeManager = {
         html.classList.add('theme-' + mode);
         body.classList.add('theme-' + mode);
 
+        // Set data-theme attribute (used by CSS selectors)
+        html.setAttribute('data-theme', mode);
+
         // Update CSS custom properties for theme
         if (mode === 'light') {
             html.style.setProperty('--bg-primary', '#f8f9fa');
@@ -120,6 +123,7 @@ setInterval(function() {
 window.CoralLedgerKeyboardShortcuts = {
     enabled: true,
     helpVisible: false,
+    initialized: false,
 
     shortcuts: {
         // Navigation shortcuts
@@ -158,6 +162,13 @@ window.CoralLedgerKeyboardShortcuts = {
     },
 
     init: function() {
+        // Prevent double initialization
+        if (this.initialized) {
+            console.log('[KeyboardShortcuts] Already initialized, skipping.');
+            return;
+        }
+        this.initialized = true;
+
         var self = this;
         document.addEventListener('keydown', function(e) {
             // Don't trigger shortcuts when typing in inputs
@@ -185,6 +196,10 @@ window.CoralLedgerKeyboardShortcuts = {
     },
 
     createHelpDialog: function() {
+        // Check if dialog already exists (prevents duplicates)
+        if (document.getElementById('keyboard-shortcuts-help')) {
+            return;
+        }
         var dialog = document.createElement('div');
         dialog.id = 'keyboard-shortcuts-help';
         dialog.setAttribute('role', 'dialog');
