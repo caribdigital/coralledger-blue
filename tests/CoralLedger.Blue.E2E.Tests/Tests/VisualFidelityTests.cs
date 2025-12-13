@@ -29,7 +29,7 @@ public class VisualFidelityTests : PlaywrightFixture
     }
 
     [Test]
-    [Description("Verifies that Blazor scoped CSS (CoralLedger.Web.styles.css) is loaded")]
+    [Description("Verifies that Blazor scoped CSS (CoralLedger.Blue.Web.styles.css) is loaded")]
     public async Task Visual_BlazorScopedCssIsLoaded()
     {
         // Arrange
@@ -39,17 +39,17 @@ public class VisualFidelityTests : PlaywrightFixture
         // Act - Check that the scoped CSS stylesheet link exists and is loaded
         var scopedCssLink = await Page.EvaluateAsync<bool>(@"() => {
             const links = document.querySelectorAll('link[rel=""stylesheet""]');
-            return Array.from(links).some(link => link.href.includes('CoralLedger.Web.styles.css'));
+            return Array.from(links).some(link => link.href.includes('CoralLedger.Blue.Web.styles.css'));
         }");
 
         // Also verify the stylesheet actually loaded (not 404)
         var stylesheetLoaded = await Page.EvaluateAsync<bool>(@"() => {
             const links = document.querySelectorAll('link[rel=""stylesheet""]');
             for (const link of links) {
-                if (link.href.includes('CoralLedger.Web.styles.css')) {
+                if (link.href.includes('CoralLedger.Blue.Web.styles.css')) {
                     // Check if stylesheet has rules (means it loaded successfully)
                     for (const sheet of document.styleSheets) {
-                        if (sheet.href && sheet.href.includes('CoralLedger.Web.styles.css')) {
+                        if (sheet.href && sheet.href.includes('CoralLedger.Blue.Web.styles.css')) {
                             try {
                                 return sheet.cssRules.length > 0;
                             } catch {
@@ -63,7 +63,7 @@ public class VisualFidelityTests : PlaywrightFixture
         }");
 
         // Assert
-        scopedCssLink.Should().BeTrue("CoralLedger.Web.styles.css link should exist in the document");
+        scopedCssLink.Should().BeTrue("CoralLedger.Blue.Web.styles.css link should exist in the document");
         stylesheetLoaded.Should().BeTrue("Scoped CSS stylesheet should load and contain rules");
     }
 
@@ -217,7 +217,7 @@ public class VisualFidelityTests : PlaywrightFixture
         {
             "bootstrap",
             "app.css",
-            "CoralLedger.Web.styles.css"
+            "CoralLedger.Blue.Web.styles.css"
         };
 
         var failedFiles = new List<string>();

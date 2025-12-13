@@ -13,7 +13,7 @@ const STATIC_ASSETS = [
     '/manifest.json',
     '/favicon.png',
     '/app.css',
-    '/CoralLedger.Web.styles.css',
+    '/CoralLedger.Blue.Web.styles.css',
     '/css/mobile.css',
     '/js/mobile.js',
     '/lib/bootstrap/dist/css/bootstrap.min.css',
