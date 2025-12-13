@@ -113,3 +113,140 @@ setInterval(function() {
         window.CoralLedgerThemeManager.applyMode(currentTheme);
     }
 }, 500);
+
+// ==========================================================================
+// Keyboard Shortcuts Manager
+// ==========================================================================
+window.CoralLedgerKeyboardShortcuts = {
+    enabled: true,
+    helpVisible: false,
+
+    shortcuts: {
+        // Navigation shortcuts
+        'd': { description: 'Go to Dashboard', action: function() { window.location.href = '/'; } },
+        'm': { description: 'Go to Map', action: function() { window.location.href = '/map'; } },
+        'b': { description: 'Go to Bleaching Status', action: function() { window.location.href = '/bleaching'; } },
+
+        // Theme toggle
+        't': { description: 'Toggle theme (dark/light)', action: function() {
+            var currentMode = window.CoralLedgerThemeManager.getMode();
+            var newMode = currentMode === 'dark' ? 'light' : 'dark';
+            window.CoralLedgerThemeManager.setMode(newMode);
+            // Click the theme toggle button to sync Blazor state
+            var themeBtn = document.querySelector('.theme-toggle');
+            if (themeBtn) themeBtn.click();
+        }},
+
+        // Quick actions
+        's': { description: 'Sync data', action: function() {
+            var syncBtn = document.querySelector('button:has(.bi-arrow-repeat), button[title*="Sync"]');
+            if (syncBtn && !syncBtn.disabled) syncBtn.click();
+        }},
+
+        // Help
+        '?': { description: 'Show keyboard shortcuts', action: function() {
+            window.CoralLedgerKeyboardShortcuts.toggleHelp();
+        }},
+
+        // Escape to close modals/panels
+        'Escape': { description: 'Close dialogs/help', action: function() {
+            window.CoralLedgerKeyboardShortcuts.hideHelp();
+            // Close any open Radzen dialogs
+            var closeBtn = document.querySelector('.rz-dialog-close');
+            if (closeBtn) closeBtn.click();
+        }}
+    },
+
+    init: function() {
+        var self = this;
+        document.addEventListener('keydown', function(e) {
+            // Don't trigger shortcuts when typing in inputs
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+                // Only allow Escape in inputs
+                if (e.key !== 'Escape') return;
+            }
+
+            // Don't trigger if modifier keys are pressed (except for ?)
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+            var key = e.key;
+            var shortcut = self.shortcuts[key];
+
+            if (shortcut && self.enabled) {
+                e.preventDefault();
+                shortcut.action();
+            }
+        });
+
+        // Create help dialog
+        this.createHelpDialog();
+
+        console.log('[KeyboardShortcuts] Initialized. Press ? for help.');
+    },
+
+    createHelpDialog: function() {
+        var dialog = document.createElement('div');
+        dialog.id = 'keyboard-shortcuts-help';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'shortcuts-help-title');
+        dialog.innerHTML = `
+            <div class="shortcuts-overlay" onclick="CoralLedgerKeyboardShortcuts.hideHelp()"></div>
+            <div class="shortcuts-content">
+                <h3 id="shortcuts-help-title">Keyboard Shortcuts</h3>
+                <button class="shortcuts-close" onclick="CoralLedgerKeyboardShortcuts.hideHelp()" aria-label="Close">×</button>
+                <div class="shortcuts-list">
+                    <div class="shortcuts-section">
+                        <h4>Navigation</h4>
+                        <div class="shortcut-row"><kbd>D</kbd> <span>Go to Dashboard</span></div>
+                        <div class="shortcut-row"><kbd>M</kbd> <span>Go to Map</span></div>
+                        <div class="shortcut-row"><kbd>B</kbd> <span>Go to Bleaching Status</span></div>
+                    </div>
+                    <div class="shortcuts-section">
+                        <h4>Actions</h4>
+                        <div class="shortcut-row"><kbd>T</kbd> <span>Toggle theme</span></div>
+                        <div class="shortcut-row"><kbd>S</kbd> <span>Sync data</span></div>
+                    </div>
+                    <div class="shortcuts-section">
+                        <h4>General</h4>
+                        <div class="shortcut-row"><kbd>?</kbd> <span>Show this help</span></div>
+                        <div class="shortcut-row"><kbd>Esc</kbd> <span>Close dialogs</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+    },
+
+    toggleHelp: function() {
+        this.helpVisible ? this.hideHelp() : this.showHelp();
+    },
+
+    showHelp: function() {
+        var dialog = document.getElementById('keyboard-shortcuts-help');
+        if (dialog) {
+            dialog.classList.add('visible');
+            this.helpVisible = true;
+            // Focus the close button for accessibility
+            var closeBtn = dialog.querySelector('.shortcuts-close');
+            if (closeBtn) closeBtn.focus();
+        }
+    },
+
+    hideHelp: function() {
+        var dialog = document.getElementById('keyboard-shortcuts-help');
+        if (dialog) {
+            dialog.classList.remove('visible');
+            this.helpVisible = false;
+        }
+    }
+};
+
+// Initialize keyboard shortcuts on DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    window.CoralLedgerKeyboardShortcuts.init();
+});
+
+if (document.readyState !== 'loading') {
+    window.CoralLedgerKeyboardShortcuts.init();
+}
