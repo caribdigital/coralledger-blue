@@ -327,6 +327,29 @@ body.theme-light .connection-status .status-copy small {
     color: #495057;
 }
 
+/* Header navigation links in light mode */
+html.theme-light .header-nav .rz-link,
+body.theme-light .header-nav .rz-link,
+html.theme-light .header-nav a.rz-link,
+body.theme-light .header-nav a.rz-link,
+:root[data-theme='light'] .header-nav .rz-link,
+:root[data-theme='light'] .header-nav a.rz-link {
+    color: #212529 !important;
+}
+
+html.theme-light .header-nav .rz-link:hover,
+body.theme-light .header-nav .rz-link:hover,
+:root[data-theme='light'] .header-nav .rz-link:hover {
+    color: #0056b3 !important;
+}
+
+/* Radzen text in header for light mode */
+html.theme-light .header-nav .rz-text,
+body.theme-light .header-nav .rz-text,
+:root[data-theme='light'] .header-nav .rz-text {
+    color: #212529 !important;
+}
+
 /* ========================================
    Connection Status & Sync Button
    ======================================== */

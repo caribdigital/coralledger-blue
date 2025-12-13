@@ -580,6 +580,28 @@
     .dashboard-footer a {
         color: var(--color-primary, #2EE3FF);
     }
+
+    /* Light theme adjustments */
+    :global(:root[data-theme='light']) .btn-header {
+        background: #ffffff;
+        color: #0C1B33;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    :global(:root[data-theme='light']) .btn-header:hover {
+        background: #f8f9fa;
+        color: #0056b3;
+    }
+
+    :global(:root[data-theme='light']) .dashboard-header {
+        background: linear-gradient(135deg, #1A6BFF, #0056b3 60%, #003d82);
+    }
+
+    :global(:root[data-theme='light']) .header-title h1,
+    :global(:root[data-theme='light']) .header-subtitle {
+        color: #ffffff;
+    }
 </style>
 
 @code {
