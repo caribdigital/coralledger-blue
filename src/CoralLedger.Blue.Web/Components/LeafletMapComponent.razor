@@ -107,31 +107,32 @@
         opacity: 1;
     }
 
+    /* Button always has solid background for visibility on any map */
     .tile-toggle-btn {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        background: #ffffff;
-        border: 2px solid #0d6efd;
+        background: var(--color-surface-alt, #ffffff);
+        border: 2px solid var(--color-primary, #2EE3FF);
         border-radius: 6px;
         padding: 6px 12px;
-        color: #0d6efd;
+        color: var(--color-primary, #2EE3FF);
         cursor: pointer;
         font-size: 0.8rem;
         font-weight: 600;
         font-family: inherit;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
         transition: all 0.2s ease;
     }
 
     .tile-toggle-btn:hover {
-        background: #0d6efd;
-        color: #ffffff;
-        box-shadow: 0 3px 8px rgba(13, 110, 253, 0.3);
+        background: var(--color-primary, #2EE3FF);
+        color: var(--color-surface, #050C1A);
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
     }
 
     .tile-toggle-btn:focus {
-        outline: 2px solid #0d6efd;
+        outline: 2px solid var(--color-primary, #2EE3FF);
         outline-offset: 2px;
     }
 
@@ -141,6 +142,19 @@
 
     .tile-toggle-btn span {
         white-space: nowrap;
+    }
+
+    /* Light theme overrides for better contrast */
+    :global(:root[data-theme='light']) .tile-toggle-btn {
+        background: #ffffff;
+        border-color: var(--color-primary, #1A6BFF);
+        color: var(--color-primary, #1A6BFF);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    :global(:root[data-theme='light']) .tile-toggle-btn:hover {
+        background: var(--color-primary, #1A6BFF);
+        color: #ffffff;
     }
 
     .mpa-count-badge {
