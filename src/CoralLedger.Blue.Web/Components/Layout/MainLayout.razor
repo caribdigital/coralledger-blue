@@ -1,0 +1,45 @@
+@inherits LayoutComponentBase
+
+@using CoralLedger.Blue.Web.Components.Shared
+@using CoralLedger.Blue.Web.Client.Components
+
+<CoralLedger.Web.Client.Components.OfflineIndicator />
+
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<RadzenLayout>
+    <RadzenSidebar @bind-Expanded="@_sidebarExpanded" class="rz-sidebar-dark">
+        <RadzenSidebarToggle Click="@(() => _sidebarExpanded = !_sidebarExpanded)" />
+        <RadzenPanelMenu>
+            <RadzenPanelMenuItem Text="Dashboard" Icon="dashboard" Path="dashboard" />
+            <RadzenPanelMenuItem Text="MPA Map" Icon="map" Path="map" />
+            <RadzenPanelMenuItem Text="Bleaching Status" Icon="thermostat" Path="bleaching" />
+        </RadzenPanelMenu>
+    </RadzenSidebar>
+
+    <RadzenBody>
+        <RadzenHeader>
+            <HeaderBar />
+        </RadzenHeader>
+
+        <main id="main-content" class="rz-p-4">
+            @Body
+        </main>
+    </RadzenBody>
+</RadzenLayout>
+
+<CoralLedger.Web.Client.Components.MobileNavigation />
+
+<div id="blazor-error-ui" role="alert" aria-live="assertive">
+    <span>An unhandled error has occurred.</span>
+    <a href="" class="reload" aria-label="Reload the page">Reload</a>
+    <button type="button" class="dismiss" aria-label="Dismiss error message">
+        <span aria-hidden="true">&#x2715;</span>
+    </button>
+</div>
+
+<script src="js/mobile.js"></script>
+
+@code {
+    private bool _sidebarExpanded = true;
+}

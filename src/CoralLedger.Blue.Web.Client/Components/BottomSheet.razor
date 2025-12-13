@@ -1,0 +1,66 @@
+@namespace CoralLedger.Blue.Web.Client.Components
+
+<div class="bottom-sheet-backdrop @(IsOpen ? "open" : "")" @onclick="Close"></div>
+
+<div class="bottom-sheet @(IsOpen ? "open" : "")" @ontouchstart="OnTouchStart" @ontouchmove="OnTouchMove" @ontouchend="OnTouchEnd">
+    <div class="bottom-sheet-handle"></div>
+
+    <div class="bottom-sheet-header">
+        <h5 class="mb-0">@Title</h5>
+        <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
+    </div>
+
+    <div class="bottom-sheet-content">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private double _touchStartY;
+    private double _touchCurrentY;
+    private bool _isDragging;
+
+    private async Task Close()
+    {
+        IsOpen = false;
+        await IsOpenChanged.InvokeAsync(false);
+        await OnClosed.InvokeAsync();
+    }
+
+    private void OnTouchStart(TouchEventArgs e)
+    {
+        if (e.Touches.Length > 0)
+        {
+            _touchStartY = e.Touches[0].ClientY;
+            _isDragging = true;
+        }
+    }
+
+    private void OnTouchMove(TouchEventArgs e)
+    {
+        if (_isDragging && e.Touches.Length > 0)
+        {
+            _touchCurrentY = e.Touches[0].ClientY;
+        }
+    }
+
+    private async Task OnTouchEnd(TouchEventArgs e)
+    {
+        if (_isDragging)
+        {
+            var dragDistance = _touchCurrentY - _touchStartY;
+            // If dragged down more than 100px, close the sheet
+            if (dragDistance > 100)
+            {
+                await Close();
+            }
+            _isDragging = false;
+        }
+    }
+}

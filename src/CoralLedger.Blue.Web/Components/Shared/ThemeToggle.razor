@@ -1,0 +1,46 @@
+@rendermode InteractiveServer
+@using CoralLedger.Blue.Web.Theme
+@inject IThemeState ThemeState
+@inject IJSRuntime JS
+
+<button class="btn btn-outline-light btn-sm theme-toggle d-flex align-items-center gap-2"
+        type="button"
+        @onclick="ToggleModeAsync"
+        aria-live="polite"
+        aria-pressed="@(_isDarkMode ? "false" : "true")"
+        title="@ButtonLabel">
+    <i class="@IconClass" aria-hidden="true"></i>
+    <span>@ButtonLabel</span>
+</button>
+
+@code {
+    private bool _isDarkMode = true;
+    private string ButtonLabel => _isDarkMode ? "Light mode" : "Dark mode";
+    private string IconClass => _isDarkMode ? "bi-brightness-high" : "bi-moon";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Read current theme from localStorage
+            var currentTheme = await JS.InvokeAsync<string>("CoralLedgerThemeManager.getMode");
+            _isDarkMode = currentTheme != "light";
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleModeAsync()
+    {
+        // Toggle the mode
+        _isDarkMode = !_isDarkMode;
+        var newMode = _isDarkMode ? "dark" : "light";
+
+        // Directly call JS to set the mode (this updates localStorage and applies theme)
+        await JS.InvokeVoidAsync("CoralLedgerThemeManager.setMode", newMode);
+
+        // Also update the ThemeState for components that depend on it
+        await ThemeState.SetModeAsync(_isDarkMode ? ThemeMode.Dark : ThemeMode.Light);
+
+        StateHasChanged();
+    }
+}

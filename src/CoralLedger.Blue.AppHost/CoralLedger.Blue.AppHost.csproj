@@ -1,0 +1,23 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.0.1">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>c37e506d-69c1-4d8b-9343-fd011d7efe75</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CoralLedger.Blue.Web\CoralLedger.Blue.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\CoralLedger.Blue.Infrastructure\ExternalServices\data\mock-bleaching-data.json">
+      <Link>data\mock-bleaching-data.json</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
