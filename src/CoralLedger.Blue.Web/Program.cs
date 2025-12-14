@@ -8,6 +8,7 @@ using CoralLedger.Blue.Web.Endpoints;
 using CoralLedger.Blue.Web.Hubs;
 using CoralLedger.Blue.Web.Security;
 using CoralLedger.Blue.Web.Theme;
+using Microsoft.EntityFrameworkCore;
 using Radzen;
 using Scalar.AspNetCore;
 
@@ -95,14 +96,26 @@ if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<MarineDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    // Ensure database is created and apply any pending migrations
-    await context.Database.EnsureCreatedAsync();
+    // Apply pending migrations (creates database if it doesn't exist)
+    // Note: MigrateAsync() is idempotent - only applies migrations not yet applied
+    var pendingMigrations = await context.Database.GetPendingMigrationsAsync();
+    if (pendingMigrations.Any())
+    {
+        logger.LogInformation("Applying {Count} pending migration(s)...", pendingMigrations.Count());
+        await context.Database.MigrateAsync();
+        logger.LogInformation("Database migrations applied successfully");
+    }
+    else
+    {
+        logger.LogInformation("Database is up to date, no migrations to apply");
+    }
 
-    // Seed the database with Bahamas MPA data
+    // Seed the database with Bahamas MPA data (idempotent - checks if data exists)
     await BahamasMpaSeeder.SeedAsync(context);
 
-    // Seed the database with Bahamian species
+    // Seed the database with Bahamian species (idempotent - checks if data exists)
     await BahamianSpeciesSeeder.SeedAsync(context);
 }
 
