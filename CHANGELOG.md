@@ -7,11 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Database initialization now uses `MigrateAsync()` instead of `EnsureCreatedAsync()` for proper migration support
+- MPA name labels now display correctly on dark map tiles with proper Leaflet tooltip styling
+
+### Added
+- Sample fishing data endpoints for development (`POST /api/admin/dev/seed-fishing-events`)
+- MPA labels on map polygons with CoralLedger Blue design system styling
+
 ## [1.0.0] - 2025-12-05
 
 ### Added - Sprint 3: Hardening & Spatial Excellence
 - **Sprint 3.1**: Foundation Hardening
-  - Comprehensive unit tests for Domain entities (121+ tests, 100% pass rate)
+  - Comprehensive unit tests for Domain entities (400+ tests, 100% pass rate)
   - SpatialValidationService implementing Dr. Thorne's 10 GIS validation gates
   - User Secrets management for API keys (no secrets in source control)
   - GitHub Actions CI/CD pipeline for automated testing
