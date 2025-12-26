@@ -167,9 +167,9 @@ public static class SecurityConfiguration
                 headers["Content-Security-Policy"] =
                     "default-src 'self'; " +
                     "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
                     "img-src 'self' data: https:; " +
-                    "font-src 'self' data: https://fonts.gstatic.com; " +
+                    "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
                     "connect-src 'self' wss: https:; " +
                     "frame-ancestors 'none';";
             }
