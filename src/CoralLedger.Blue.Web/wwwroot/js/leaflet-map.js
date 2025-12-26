@@ -5,6 +5,7 @@ window.leafletMap = {
     fishingLayers: {},
     tileLayers: {},
     legendControls: {},
+    hoverInfoControls: {},
 
     // Tile layer definitions (US-2.2.1: Dark Map Base Layer)
     tileOptions: {
@@ -180,9 +181,13 @@ window.leafletMap = {
                     mouseover: (e) => {
                         e.target.setStyle(highlightStyle);
                         e.target.bringToFront();
+                        // Show hover info box
+                        this.showHoverInfo(mapId, props);
                     },
                     mouseout: (e) => {
                         this.mpaLayers[mapId].resetStyle(e.target);
+                        // Hide hover info box
+                        this.hideHoverInfo(mapId);
                     },
                     click: (e) => {
                         map.fitBounds(e.target.getBounds(), { padding: [50, 50] });
@@ -415,6 +420,87 @@ window.leafletMap = {
         return this.addLegend(mapId, showMpa, showFishing);
     },
 
+    // Create hover info control for MPA details
+    createHoverInfoControl: function(mapId) {
+        const map = this.maps[mapId];
+        if (!map || this.hoverInfoControls[mapId]) return;
+
+        const info = L.control({ position: 'topright' });
+
+        info.onAdd = function() {
+            const div = L.DomUtil.create('div', 'mpa-hover-info');
+            div.setAttribute('role', 'status');
+            div.setAttribute('aria-live', 'polite');
+            div.setAttribute('aria-label', 'Marine Protected Area Information');
+            div.style.display = 'none';
+            return div;
+        };
+
+        info.addTo(map);
+        this.hoverInfoControls[mapId] = info;
+    },
+
+    // Show hover info box with MPA details
+    showHoverInfo: function(mapId, props) {
+        if (!this.hoverInfoControls[mapId]) {
+            this.createHoverInfoControl(mapId);
+        }
+
+        const container = this.hoverInfoControls[mapId]?.getContainer();
+        if (!container) return;
+
+        const getColorClass = (level) => {
+            switch (level) {
+                case 'NoTake': return 'protection-no-take';
+                case 'HighlyProtected': return 'protection-highly';
+                case 'LightlyProtected': return 'protection-lightly';
+                default: return 'protection-unknown';
+            }
+        };
+
+        const getIcon = (level) => {
+            switch (level) {
+                case 'NoTake': return '🚫';
+                case 'HighlyProtected': return '🛡️';
+                case 'LightlyProtected': return '🌊';
+                default: return '📍';
+            }
+        };
+
+        container.innerHTML = `
+            <div class="hover-info-header">
+                <span class="hover-info-icon">${getIcon(props.ProtectionLevel)}</span>
+                <span class="hover-info-title">${props.Name}</span>
+            </div>
+            <div class="hover-info-body">
+                <div class="hover-info-row">
+                    <span class="hover-info-label">Island Group</span>
+                    <span class="hover-info-value">${props.IslandGroup}</span>
+                </div>
+                <div class="hover-info-row">
+                    <span class="hover-info-label">Protection</span>
+                    <span class="hover-info-value ${getColorClass(props.ProtectionLevel)}">${props.ProtectionLevel.replace(/([A-Z])/g, ' $1').trim()}</span>
+                </div>
+                <div class="hover-info-row">
+                    <span class="hover-info-label">Area</span>
+                    <span class="hover-info-value">${props.AreaSquareKm.toFixed(1)} km²</span>
+                </div>
+            </div>
+            <div class="hover-info-footer">
+                <small>Click for more details</small>
+            </div>
+        `;
+        container.style.display = 'block';
+    },
+
+    // Hide hover info box
+    hideHoverInfo: function(mapId) {
+        const container = this.hoverInfoControls[mapId]?.getContainer();
+        if (container) {
+            container.style.display = 'none';
+        }
+    },
+
     // Dispose map
     dispose: function (mapId) {
         if (this.maps[mapId]) {
@@ -424,6 +510,7 @@ window.leafletMap = {
             delete this.fishingLayers[mapId];
             delete this.tileLayers[mapId];
             delete this.legendControls[mapId];
+            delete this.hoverInfoControls[mapId];
         }
     }
 };

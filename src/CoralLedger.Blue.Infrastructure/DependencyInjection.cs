@@ -64,6 +64,16 @@ public static class DependencyInjection
         // Sprint 5.2.5: Register Semantic Search service (vector embeddings)
         services.AddScoped<ISemanticSearchService, SemanticSearchService>();
 
+        // Register Email service (SendGrid)
+        services.Configure<SendGridOptions>(
+            configuration.GetSection(SendGridOptions.SectionName));
+        services.AddSingleton<IEmailService, SendGridEmailService>();
+
+        // Register Web Push notification service
+        services.Configure<WebPushOptions>(
+            configuration.GetSection(WebPushOptions.SectionName));
+        services.AddSingleton<IPushNotificationService, WebPushNotificationService>();
+
         // Register Alert services
         services.AddScoped<IAlertRuleEngine, AlertRuleEngine>();
         services.AddScoped<IAlertNotificationService, AlertNotificationService>();

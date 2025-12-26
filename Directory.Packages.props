@@ -50,6 +50,10 @@
     <PackageVersion Include="Quartz.Extensions.Hosting" Version="3.13.1" />
     <!-- Azure Storage -->
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.22.2" />
+    <!-- Email (SendGrid) -->
+    <PackageVersion Include="SendGrid" Version="9.29.3" />
+    <!-- Web Push Notifications -->
+    <PackageVersion Include="WebPush" Version="1.0.12" />
     <!-- Image Metadata / EXIF Extraction -->
     <PackageVersion Include="MetadataExtractor" Version="2.8.1" />
     <!-- Redis Caching -->

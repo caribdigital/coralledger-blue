@@ -11,40 +11,47 @@ namespace CoralLedger.Blue.Infrastructure.Alerts;
 public class AlertNotificationService : IAlertNotificationService
 {
     private readonly IAlertHubContext _hubContext;
+    private readonly IEmailService _emailService;
+    private readonly IPushNotificationService _pushService;
     private readonly ILogger<AlertNotificationService> _logger;
 
     public AlertNotificationService(
         IAlertHubContext hubContext,
+        IEmailService emailService,
+        IPushNotificationService pushService,
         ILogger<AlertNotificationService> logger)
     {
         _hubContext = hubContext;
+        _emailService = emailService;
+        _pushService = pushService;
         _logger = logger;
     }
 
     public async Task SendNotificationAsync(Alert alert, AlertRule rule, CancellationToken cancellationToken = default)
     {
         var channels = rule.NotificationChannels;
+        var tasks = new List<Task>();
 
         // Real-time via SignalR
         if (channels.HasFlag(NotificationChannel.RealTime) || channels.HasFlag(NotificationChannel.Dashboard))
         {
-            await SendRealTimeNotificationAsync(alert, cancellationToken);
+            tasks.Add(SendRealTimeNotificationAsync(alert, cancellationToken));
         }
 
-        // Email notification (placeholder - would integrate with email service)
+        // Email notification
         if (channels.HasFlag(NotificationChannel.Email) && !string.IsNullOrEmpty(rule.NotificationEmails))
         {
-            _logger.LogInformation("Would send email to {Emails} for alert {AlertId}",
-                rule.NotificationEmails, alert.Id);
-            // TODO: Integrate with email service (SendGrid, SMTP, etc.)
+            tasks.Add(SendEmailNotificationAsync(alert, rule.NotificationEmails, cancellationToken));
         }
 
-        // Push notification (placeholder - would integrate with web push)
+        // Push notification
         if (channels.HasFlag(NotificationChannel.Push))
         {
-            _logger.LogInformation("Would send push notification for alert {AlertId}", alert.Id);
-            // TODO: Integrate with web push service
+            tasks.Add(SendPushNotificationAsync(alert, cancellationToken));
         }
+
+        // Wait for all notifications to be sent
+        await Task.WhenAll(tasks);
     }
 
     public async Task SendRealTimeNotificationAsync(Alert alert, CancellationToken cancellationToken = default)
@@ -72,5 +79,57 @@ public class AlertNotificationService : IAlertNotificationService
         }
 
         _logger.LogInformation("Sent real-time alert: {Title}", alert.Title);
+    }
+
+    private async Task SendEmailNotificationAsync(Alert alert, string emails, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var mpaName = alert.MarineProtectedArea?.Name;
+            var success = await _emailService.SendAlertEmailAsync(
+                emails,
+                alert.Title,
+                alert.Message,
+                alert.Severity.ToString(),
+                mpaName,
+                cancellationToken);
+
+            if (success)
+            {
+                _logger.LogInformation("Email notification sent for alert {AlertId} to {Emails}",
+                    alert.Id, emails);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to send email notification for alert {AlertId}", alert.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending email notification for alert {AlertId}", alert.Id);
+        }
+    }
+
+    private async Task SendPushNotificationAsync(Alert alert, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var url = alert.MarineProtectedAreaId.HasValue
+                ? $"/map?mpaId={alert.MarineProtectedAreaId}"
+                : "/dashboard";
+
+            var count = await _pushService.SendToAllAsync(
+                alert.Title,
+                alert.Message,
+                url,
+                cancellationToken);
+
+            _logger.LogInformation("Push notification sent to {Count} subscribers for alert {AlertId}",
+                count, alert.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending push notification for alert {AlertId}", alert.Id);
+        }
     }
 }

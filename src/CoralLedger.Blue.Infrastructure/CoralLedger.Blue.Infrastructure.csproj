@@ -3,6 +3,8 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="SendGrid" />
+    <PackageReference Include="WebPush" />
     <PackageReference Include="MetadataExtractor" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" />
