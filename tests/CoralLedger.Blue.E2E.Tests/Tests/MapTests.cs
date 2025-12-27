@@ -351,8 +351,8 @@ public class MapTests : PlaywrightFixture
             await Page.ScreenshotAsync(new() { Path = screenshotPath, FullPage = true });
 
             // Log any errors
-            var errors = consoleMessages.Where(m => m.StartsWith("[error]")).ToList();
-            if (errors.Any())
+            var errors = consoleMessages.Where(m => m.StartsWith("[error]", StringComparison.Ordinal)).ToList();
+            if (errors.Count > 0)
             {
                 Console.WriteLine("Console errors:");
                 foreach (var err in errors)

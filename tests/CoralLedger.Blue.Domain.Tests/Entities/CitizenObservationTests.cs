@@ -90,7 +90,7 @@ public class CitizenObservationTests
 
         // Assert
         act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithParameterName("severity")
+            .WithParameterName(nameof(severity))
             .WithMessage("*Severity must be between 1 and 5*");
     }
 

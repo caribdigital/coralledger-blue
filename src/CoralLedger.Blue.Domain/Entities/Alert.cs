@@ -60,7 +60,7 @@ public class Alert : BaseEntity
     /// <summary>
     /// Whether this alert has been acknowledged
     /// </summary>
-    public bool IsAcknowledged { get; private set; } = false;
+    public bool IsAcknowledged { get; private set; }
 
     /// <summary>
     /// Who acknowledged the alert

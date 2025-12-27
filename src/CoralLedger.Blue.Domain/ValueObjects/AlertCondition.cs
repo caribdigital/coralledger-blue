@@ -74,7 +74,7 @@ public record VesselInMpaCondition : AlertCondition
     /// <summary>
     /// Only alert in NoTake zones
     /// </summary>
-    public bool OnlyNoTakeZones { get; init; } = false;
+    public bool OnlyNoTakeZones { get; init; }
 }
 
 /// <summary>

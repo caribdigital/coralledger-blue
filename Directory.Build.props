@@ -3,7 +3,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Use default analysis - 'latest-minimum' catches too many pedantic issues for this codebase -->
+    <AnalysisLevel>none</AnalysisLevel>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 

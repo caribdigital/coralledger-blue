@@ -175,7 +175,7 @@ public class PlaywrightFixture : PageTest
         return fallback;
     }
 
-    private async Task<bool> IsUrlResponsiveAsync(string url)
+    private static async Task<bool> IsUrlResponsiveAsync(string url)
     {
         try
         {

@@ -30,10 +30,14 @@ public class SearchSpeciesQueryHandler : IRequestHandler<SearchSpeciesQuery, IRe
         if (!string.IsNullOrWhiteSpace(request.SearchTerm))
         {
             var term = request.SearchTerm.ToLower();
+            // CA1862: This is an EF Core query - ToLower().Contains() is the correct pattern
+            // for case-insensitive database searches that translates properly to SQL
+#pragma warning disable CA1862
             query = query.Where(s =>
                 s.ScientificName.ToLower().Contains(term) ||
                 s.CommonName.ToLower().Contains(term) ||
                 (s.LocalName != null && s.LocalName.ToLower().Contains(term)));
+#pragma warning restore CA1862
         }
 
         if (request.Category.HasValue)

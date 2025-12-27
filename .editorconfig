@@ -1,0 +1,29 @@
+# EditorConfig for CoralLedger Blue
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = crlf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.cs]
+# CA1707: Identifiers should not contain underscores
+# Allowed in test methods for readability (e.g., Method_Scenario_Expected)
+dotnet_diagnostic.CA1707.severity = warning
+
+# Suppress CA1707 for test projects - underscore naming is a common test convention
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+# Also suppress culture-related warnings in tests (CA1305, CA1310, CA1311, CA1304)
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1310.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1304.severity = none
+# Suppress CA1861 in tests - inline arrays are fine for test readability
+dotnet_diagnostic.CA1861.severity = none
+
+[*.{csproj,props,targets}]
+indent_size = 2

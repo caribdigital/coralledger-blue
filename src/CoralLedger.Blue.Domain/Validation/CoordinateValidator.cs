@@ -8,6 +8,10 @@ namespace CoralLedger.Blue.Domain.Validation;
 /// </summary>
 public static class CoordinateValidator
 {
+    // Static error message arrays to avoid CA1861 (repeated allocations)
+    private static readonly string[] PointNullErrors = ["Point is null"];
+    private static readonly string[] PointEmptyErrors = ["Point is empty"];
+
     /// <summary>
     /// Valid latitude range
     /// </summary>
@@ -164,12 +168,12 @@ public static class CoordinateValidator
     {
         if (point == null)
         {
-            return new CoordinateValidationResult(false, new[] { "Point is null" });
+            return new CoordinateValidationResult(false, PointNullErrors);
         }
 
         if (point.IsEmpty)
         {
-            return new CoordinateValidationResult(false, new[] { "Point is empty" });
+            return new CoordinateValidationResult(false, PointEmptyErrors);
         }
 
         return Validate(point.Y, point.X, requireBahamas);
