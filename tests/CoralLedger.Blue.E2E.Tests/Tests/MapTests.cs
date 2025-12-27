@@ -325,9 +325,9 @@ public class MapTests : PlaywrightFixture
             await mpaListItem.ClickAsync();
             await Task.Delay(18000); // Wait for 15-second timeout + buffer
 
-            // Check if info panel shows MPA details
-            var cardTitle = Page.Locator(".card-title").First;
-            (await cardTitle.IsVisibleAsync()).Should().BeTrue("MPA name should be visible in info panel");
+            // Check if info panel shows MPA details (MPA name is in .mpa-header h4)
+            var mpaName = Page.Locator(".mpa-header h4").First;
+            (await mpaName.IsVisibleAsync()).Should().BeTrue("MPA name should be visible in info panel");
 
             // Check for bleaching section
             var bleachingSection = Page.GetByText("Coral Bleaching Status");

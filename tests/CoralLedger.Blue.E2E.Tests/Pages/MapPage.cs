@@ -328,8 +328,21 @@ public class MapPage : BasePage
     /// </summary>
     public async Task<string> GetSelectedMpaNameAsync()
     {
-        var cardTitle = Page.Locator(".card-title").First;
-        return await cardTitle.TextContentAsync() ?? "";
+        // MPA name is in .mpa-header h4 in the MpaInfoPanel component
+        var mpaName = Page.Locator(".mpa-header h4, .mpa-info-panel h4").First;
+        try
+        {
+            await mpaName.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = 10000
+            });
+            return await mpaName.TextContentAsync() ?? "";
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     /// <summary>
