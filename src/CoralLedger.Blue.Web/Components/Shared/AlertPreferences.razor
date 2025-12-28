@@ -1,0 +1,194 @@
+@rendermode InteractiveServer
+@using CoralLedger.Blue.Domain.Enums
+@inject IJSRuntime JS
+
+<div class="settings-card">
+    <h3><span class="material-icons">tune</span> Alert Preferences</h3>
+    <p class="settings-description">Choose which alerts you want to receive</p>
+
+    <div class="alert-categories">
+        @foreach (var category in _alertCategories)
+        {
+            <div class="alert-category @(category.Enabled ? "enabled" : "")">
+                <div class="category-header" @onclick="() => ToggleCategory(category)">
+                    <div class="category-icon" style="background: @category.Color;">
+                        <span class="material-icons">@category.Icon</span>
+                    </div>
+                    <div class="category-info">
+                        <strong>@category.Name</strong>
+                        <span class="category-description">@category.Description</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="category.Enabled" @bind:after="SavePreferencesAsync" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                @if (category.Enabled && category.HasSeverityFilter)
+                {
+                    <div class="severity-filter">
+                        <label>Minimum severity:</label>
+                        <select @bind="category.MinSeverity" @bind:after="SavePreferencesAsync">
+                            <option value="@AlertSeverity.Info">Info (all alerts)</option>
+                            <option value="@AlertSeverity.Low">Low and above</option>
+                            <option value="@AlertSeverity.Medium">Medium and above</option>
+                            <option value="@AlertSeverity.High">High and critical only</option>
+                            <option value="@AlertSeverity.Critical">Critical only</option>
+                        </select>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="preferences-footer">
+        <button class="btn-text" @onclick="ResetToDefaultsAsync">
+            <span class="material-icons">restart_alt</span>
+            Reset to defaults
+        </button>
+    </div>
+</div>
+
+@code {
+    private List<AlertCategory> _alertCategories = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPreferencesAsync();
+    }
+
+    private async Task LoadPreferencesAsync()
+    {
+        // Load from localStorage or use defaults
+        _alertCategories = new List<AlertCategory>
+        {
+            new()
+            {
+                Type = AlertType.Bleaching,
+                Name = "Bleaching Alerts",
+                Description = "Coral bleaching and temperature anomalies",
+                Icon = "thermostat",
+                Color = "rgba(253, 126, 20, 0.2)",
+                Enabled = true,
+                HasSeverityFilter = true,
+                MinSeverity = AlertSeverity.Medium
+            },
+            new()
+            {
+                Type = AlertType.VesselInMPA,
+                Name = "MPA Violations",
+                Description = "Vessels detected inside protected areas",
+                Icon = "sailing",
+                Color = "rgba(239, 68, 68, 0.2)",
+                Enabled = true,
+                HasSeverityFilter = true,
+                MinSeverity = AlertSeverity.Medium
+            },
+            new()
+            {
+                Type = AlertType.FishingActivity,
+                Name = "Fishing Activity",
+                Description = "Unusual fishing activity near protected zones",
+                Icon = "phishing",
+                Color = "rgba(88, 166, 255, 0.2)",
+                Enabled = true,
+                HasSeverityFilter = true,
+                MinSeverity = AlertSeverity.High
+            },
+            new()
+            {
+                Type = AlertType.VesselDarkEvent,
+                Name = "AIS Dark Events",
+                Description = "Vessels that disabled tracking",
+                Icon = "signal_cellular_off",
+                Color = "rgba(156, 163, 175, 0.2)",
+                Enabled = false,
+                HasSeverityFilter = false,
+                MinSeverity = AlertSeverity.Info
+            },
+            new()
+            {
+                Type = AlertType.CitizenObservation,
+                Name = "Citizen Reports",
+                Description = "Community observations and sightings",
+                Icon = "campaign",
+                Color = "rgba(34, 197, 94, 0.2)",
+                Enabled = true,
+                HasSeverityFilter = true,
+                MinSeverity = AlertSeverity.Low
+            }
+        };
+
+        // Try to load saved preferences
+        try
+        {
+            var saved = await JS.InvokeAsync<string>("localStorage.getItem", "alert-preferences");
+            if (!string.IsNullOrEmpty(saved))
+            {
+                var prefs = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, AlertPref>>(saved);
+                if (prefs != null)
+                {
+                    foreach (var category in _alertCategories)
+                    {
+                        if (prefs.TryGetValue(category.Type.ToString(), out var pref))
+                        {
+                            category.Enabled = pref.Enabled;
+                            category.MinSeverity = pref.MinSeverity;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Use defaults
+        }
+    }
+
+    private void ToggleCategory(AlertCategory category)
+    {
+        category.Enabled = !category.Enabled;
+        _ = SavePreferencesAsync();
+    }
+
+    private async Task SavePreferencesAsync()
+    {
+        try
+        {
+            var prefs = _alertCategories.ToDictionary(
+                c => c.Type.ToString(),
+                c => new AlertPref { Enabled = c.Enabled, MinSeverity = c.MinSeverity }
+            );
+            var json = System.Text.Json.JsonSerializer.Serialize(prefs);
+            await JS.InvokeVoidAsync("localStorage.setItem", "alert-preferences", json);
+        }
+        catch
+        {
+            // Ignore save errors
+        }
+    }
+
+    private async Task ResetToDefaultsAsync()
+    {
+        await JS.InvokeVoidAsync("localStorage.removeItem", "alert-preferences");
+        await LoadPreferencesAsync();
+        StateHasChanged();
+    }
+
+    private class AlertCategory
+    {
+        public AlertType Type { get; set; }
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Icon { get; set; } = "";
+        public string Color { get; set; } = "";
+        public bool Enabled { get; set; }
+        public bool HasSeverityFilter { get; set; }
+        public AlertSeverity MinSeverity { get; set; }
+    }
+
+    private class AlertPref
+    {
+        public bool Enabled { get; set; }
+        public AlertSeverity MinSeverity { get; set; }
+    }
+}

@@ -1,0 +1,146 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+<div class="settings-card">
+    <h3><span class="material-icons">notifications_active</span> Push Notifications</h3>
+    <p class="settings-description">Receive alerts for critical events even when the app is closed</p>
+
+    <div class="notification-status">
+        @if (_permissionState == "denied")
+        {
+            <div class="status-message error">
+                <span class="material-icons">block</span>
+                <div>
+                    <strong>Notifications Blocked</strong>
+                    <p>Please enable notifications in your browser settings to receive alerts.</p>
+                </div>
+            </div>
+        }
+        else if (_isSubscribed)
+        {
+            <div class="status-message success">
+                <span class="material-icons">check_circle</span>
+                <div>
+                    <strong>Push Notifications Active</strong>
+                    <p>You'll receive alerts for important events.</p>
+                </div>
+            </div>
+            <button class="btn-outline" @onclick="UnsubscribeAsync" disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <span class="spinner"></span>
+                }
+                Disable Notifications
+            </button>
+        }
+        else
+        {
+            <div class="status-message info">
+                <span class="material-icons">info</span>
+                <div>
+                    <strong>Stay Informed</strong>
+                    <p>Get notified about bleaching events, MPA violations, and fishing activity.</p>
+                </div>
+            </div>
+            <button class="btn-primary" @onclick="SubscribeAsync" disabled="@_isLoading">
+                @if (_isLoading)
+                {
+                    <span class="spinner"></span>
+                }
+                else
+                {
+                    <span class="material-icons">notifications</span>
+                }
+                Enable Push Notifications
+            </button>
+        }
+    </div>
+
+    @if (_isSupported == false)
+    {
+        <div class="browser-support-warning">
+            <span class="material-icons">warning</span>
+            Push notifications are not supported in this browser.
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isSubscribed;
+    private bool _isLoading;
+    private bool? _isSupported;
+    private string _permissionState = "default";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await CheckPushSupportAsync();
+        }
+    }
+
+    private async Task CheckPushSupportAsync()
+    {
+        try
+        {
+            _isSupported = await JS.InvokeAsync<bool>("pushNotifications.isSupported");
+            if (_isSupported == true)
+            {
+                _permissionState = await JS.InvokeAsync<string>("pushNotifications.getPermissionState");
+                _isSubscribed = await JS.InvokeAsync<bool>("pushNotifications.isSubscribed");
+            }
+            StateHasChanged();
+        }
+        catch
+        {
+            _isSupported = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SubscribeAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await JS.InvokeAsync<bool>("pushNotifications.subscribe");
+            _isSubscribed = result;
+            if (result)
+            {
+                _permissionState = "granted";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to subscribe: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UnsubscribeAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            await JS.InvokeVoidAsync("pushNotifications.unsubscribe");
+            _isSubscribed = false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to unsubscribe: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

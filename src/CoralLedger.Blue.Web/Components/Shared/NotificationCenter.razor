@@ -1,0 +1,318 @@
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.SignalR.Client
+@using CoralLedger.Blue.Domain.Enums
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="notification-center" @onclick:stopPropagation="true">
+    <button class="notification-bell @(_isOpen ? "active" : "") @(!_isConnected ? "disconnected" : "")"
+            @onclick="TogglePanel"
+            aria-label="@GetAriaLabel()"
+            aria-expanded="@_isOpen"
+            aria-haspopup="true"
+            title="@(_isConnected ? "Real-time alerts active" : "Reconnecting...")">
+        <span class="material-icons" aria-hidden="true">@(_isConnected ? "notifications" : "notifications_off")</span>
+        @if (_unreadCount > 0)
+        {
+            <span class="notification-badge" aria-hidden="true">@(_unreadCount > 99 ? "99+" : _unreadCount)</span>
+        }
+    </button>
+
+    @if (_isOpen)
+    {
+        <div class="notification-panel" role="dialog" aria-label="Notifications">
+            <div class="notification-header">
+                <h3>Alerts</h3>
+                <div class="notification-actions">
+                    @if (_alerts.Any(a => !a.IsAcknowledged))
+                    {
+                        <button class="btn-text" @onclick="MarkAllAsRead" aria-label="Mark all as read">
+                            Mark all read
+                        </button>
+                    }
+                    <button class="btn-icon" @onclick="() => _isOpen = false" aria-label="Close notifications">
+                        <span class="material-icons">close</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="notification-list" role="list">
+                @if (!_alerts.Any())
+                {
+                    <div class="notification-empty">
+                        <span class="material-icons" aria-hidden="true">notifications_none</span>
+                        <p>No alerts</p>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var alert in _alerts.Take(20))
+                    {
+                        <div class="notification-item @(alert.IsAcknowledged ? "" : "unread") severity-@alert.Severity.ToString().ToLower()"
+                             role="listitem"
+                             @onclick="() => HandleAlertClick(alert)">
+                            <div class="notification-icon">
+                                <span class="material-icons" aria-hidden="true">@GetAlertIcon(alert.Type)</span>
+                            </div>
+                            <div class="notification-content">
+                                <div class="notification-title">@alert.Title</div>
+                                <div class="notification-message">@alert.Message</div>
+                                <div class="notification-time">@FormatTime(alert.CreatedAt)</div>
+                            </div>
+                            @if (!alert.IsAcknowledged)
+                            {
+                                <button class="btn-acknowledge"
+                                        @onclick:stopPropagation="true"
+                                        @onclick="() => AcknowledgeAlert(alert)"
+                                        aria-label="Acknowledge alert">
+                                    <span class="material-icons">check</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            @if (_alerts.Count > 5)
+            {
+                <div class="notification-footer">
+                    <a href="/alerts" class="view-all-link">View all alerts</a>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* Toast container for real-time notifications *@
+<div class="toast-container" aria-live="polite" aria-atomic="true">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast @(toast.IsVisible ? "show" : "hide") severity-@toast.Severity.ToString().ToLower()"
+             role="alert"
+             aria-live="assertive">
+            <div class="toast-icon">
+                <span class="material-icons">@GetAlertIcon(toast.Type)</span>
+            </div>
+            <div class="toast-content">
+                <div class="toast-title">@toast.Title</div>
+                <div class="toast-message">@toast.Message</div>
+            </div>
+            <button class="toast-close" @onclick="() => DismissToast(toast)" aria-label="Dismiss">
+                <span class="material-icons">close</span>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private HubConnection? _hubConnection;
+    private List<AlertNotification> _alerts = new();
+    private List<ToastNotification> _toasts = new();
+    private bool _isOpen;
+    private int _unreadCount;
+    private bool _isConnected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ConnectToHub();
+        await LoadRecentAlerts();
+    }
+
+    private async Task ConnectToHub()
+    {
+        try
+        {
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/hubs/alerts"))
+                .WithAutomaticReconnect()
+                .Build();
+
+            _hubConnection.On<AlertNotification>("ReceiveAlert", HandleNewAlert);
+
+            _hubConnection.Reconnecting += _ =>
+            {
+                _isConnected = false;
+                InvokeAsync(StateHasChanged);
+                return Task.CompletedTask;
+            };
+
+            _hubConnection.Reconnected += _ =>
+            {
+                _isConnected = true;
+                InvokeAsync(StateHasChanged);
+                return Task.CompletedTask;
+            };
+
+            await _hubConnection.StartAsync();
+            await _hubConnection.SendAsync("SubscribeToAllAlerts");
+            _isConnected = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to connect to alert hub: {ex.Message}");
+        }
+    }
+
+    private async Task LoadRecentAlerts()
+    {
+        // Load from API - in production this would call the alerts endpoint
+        // For now, we start with an empty list and receive real-time alerts
+        _unreadCount = _alerts.Count(a => !a.IsAcknowledged);
+    }
+
+    private void HandleNewAlert(AlertNotification alert)
+    {
+        _alerts.Insert(0, alert);
+        _unreadCount = _alerts.Count(a => !a.IsAcknowledged);
+
+        // Show toast for high severity alerts
+        if (alert.Severity >= AlertSeverity.Medium)
+        {
+            ShowToast(alert);
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ShowToast(AlertNotification alert)
+    {
+        var toast = new ToastNotification
+        {
+            Id = Guid.NewGuid(),
+            Title = alert.Title,
+            Message = alert.Message,
+            Type = alert.Type,
+            Severity = alert.Severity,
+            IsVisible = true
+        };
+
+        _toasts.Add(toast);
+
+        // Auto-dismiss after 5 seconds
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(5000);
+            toast.IsVisible = false;
+            await InvokeAsync(StateHasChanged);
+            await Task.Delay(300); // Animation duration
+            _toasts.Remove(toast);
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void DismissToast(ToastNotification toast)
+    {
+        toast.IsVisible = false;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(300);
+            _toasts.Remove(toast);
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private void TogglePanel()
+    {
+        _isOpen = !_isOpen;
+    }
+
+    private string GetAriaLabel()
+    {
+        var label = _unreadCount > 0 ? $"Notifications ({_unreadCount} unread)" : "Notifications";
+        return _isConnected ? label : $"{label} (disconnected)";
+    }
+
+    private async Task HandleAlertClick(AlertNotification alert)
+    {
+        if (!alert.IsAcknowledged)
+        {
+            await AcknowledgeAlert(alert);
+        }
+
+        // Navigate based on alert type
+        var path = alert.Type switch
+        {
+            AlertType.Bleaching => "/bleaching",
+            AlertType.FishingActivity or AlertType.VesselInMPA or AlertType.VesselDarkEvent => "/map",
+            AlertType.CitizenObservation => "/observations",
+            _ => "/alerts"
+        };
+
+        Navigation.NavigateTo(path);
+        _isOpen = false;
+    }
+
+    private async Task AcknowledgeAlert(AlertNotification alert)
+    {
+        alert.IsAcknowledged = true;
+        _unreadCount = _alerts.Count(a => !a.IsAcknowledged);
+
+        // In production, call API to persist acknowledgment
+        // await Http.PostAsync($"/api/alerts/{alert.Id}/acknowledge", null);
+    }
+
+    private void MarkAllAsRead()
+    {
+        foreach (var alert in _alerts.Where(a => !a.IsAcknowledged))
+        {
+            alert.IsAcknowledged = true;
+        }
+        _unreadCount = 0;
+    }
+
+    private string GetAlertIcon(AlertType type) => type switch
+    {
+        AlertType.Bleaching => "thermostat",
+        AlertType.FishingActivity => "phishing",
+        AlertType.VesselInMPA => "sailing",
+        AlertType.VesselDarkEvent => "signal_cellular_off",
+        AlertType.CitizenObservation => "campaign",
+        AlertType.TemperatureAnomaly => "device_thermostat",
+        AlertType.DegreeHeatingWeek => "local_fire_department",
+        AlertType.System => "settings",
+        _ => "warning"
+    };
+
+    private string FormatTime(DateTime time)
+    {
+        var diff = DateTime.UtcNow - time;
+        return diff.TotalMinutes < 1 ? "Just now"
+            : diff.TotalMinutes < 60 ? $"{(int)diff.TotalMinutes}m ago"
+            : diff.TotalHours < 24 ? $"{(int)diff.TotalHours}h ago"
+            : diff.TotalDays < 7 ? $"{(int)diff.TotalDays}d ago"
+            : time.ToString("MMM d");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is not null)
+        {
+            await _hubConnection.DisposeAsync();
+        }
+    }
+
+    // DTOs for notification data
+    public class AlertNotification
+    {
+        public Guid Id { get; set; }
+        public AlertType Type { get; set; }
+        public AlertSeverity Severity { get; set; }
+        public string Title { get; set; } = "";
+        public string Message { get; set; } = "";
+        public DateTime CreatedAt { get; set; }
+        public bool IsAcknowledged { get; set; }
+        public Guid? MarineProtectedAreaId { get; set; }
+        public string? MpaName { get; set; }
+    }
+
+    public class ToastNotification
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = "";
+        public string Message { get; set; } = "";
+        public AlertType Type { get; set; }
+        public AlertSeverity Severity { get; set; }
+        public bool IsVisible { get; set; }
+    }
+}
