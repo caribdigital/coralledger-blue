@@ -303,6 +303,104 @@ a,
 }
 
 /* ========================================
+   MPA Enhanced Boundary Styling
+   Animated pulsing borders for NoTake zones
+   ======================================== */
+.mpa-pulse-border {
+    animation: mpa-pulse 2s ease-in-out infinite;
+}
+
+@keyframes mpa-pulse {
+    0%, 100% {
+        stroke-opacity: 0.8;
+        stroke-width: 4;
+    }
+    50% {
+        stroke-opacity: 0.3;
+        stroke-width: 6;
+    }
+}
+
+/* ========================================
+   Fishing Event Marker Styles
+   Violation markers with pulsing animation
+   ======================================== */
+.fishing-violation-marker {
+    background: transparent !important;
+    border: none !important;
+}
+
+.fishing-violation-marker .violation-pulse {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 3px solid #ff0000;
+    position: relative;
+    animation: violation-pulse 1.5s ease-out infinite;
+    box-shadow: 0 0 8px rgba(255, 0, 0, 0.6);
+}
+
+.fishing-violation-marker .violation-pulse::after {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    right: -6px;
+    bottom: -6px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 0, 0, 0.4);
+    animation: violation-ring 1.5s ease-out infinite;
+}
+
+@keyframes violation-pulse {
+    0% {
+        transform: scale(0.9);
+        box-shadow: 0 0 8px rgba(255, 0, 0, 0.6);
+    }
+    50% {
+        transform: scale(1.1);
+        box-shadow: 0 0 16px rgba(255, 0, 0, 0.8);
+    }
+    100% {
+        transform: scale(0.9);
+        box-shadow: 0 0 8px rgba(255, 0, 0, 0.6);
+    }
+}
+
+@keyframes violation-ring {
+    0% {
+        transform: scale(1);
+        opacity: 0.6;
+    }
+    100% {
+        transform: scale(1.8);
+        opacity: 0;
+    }
+}
+
+/* Fishing trajectory lines */
+.fishing-trajectory {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Fishing popup styling */
+.fishing-popup .popup-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fishing-popup .popup-body {
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.fishing-popup .popup-body div {
+    margin: 2px 0;
+}
+
+/* ========================================
    US-2.2.3: Map Control Panel Styles
    ======================================== */
 .map-controls {

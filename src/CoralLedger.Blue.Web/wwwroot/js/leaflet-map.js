@@ -2,7 +2,9 @@
 window.leafletMap = {
     maps: {},
     mpaLayers: {},
+    mpaPulseLayers: {},  // Animated pulse layers for NoTake zones
     fishingLayers: {},
+    trajectoryLayers: {},  // Vessel trajectory lines
     tileLayers: {},
     legendControls: {},
     hoverInfoControls: {},
@@ -140,18 +142,52 @@ window.leafletMap = {
             }
         };
 
-        const style = (feature) => ({
-            fillColor: getColor(feature.properties.ProtectionLevel),
-            weight: 2,
-            opacity: 1,
-            color: getColor(feature.properties.ProtectionLevel),
-            fillOpacity: 0.4
-        });
+        // Enhanced styling with different border patterns
+        const style = (feature) => {
+            const level = feature.properties.ProtectionLevel;
+            const color = getColor(level);
+            const isNoTake = level === 'NoTake';
+            const isActive = feature.properties.Status !== 'Inactive';
+
+            return {
+                fillColor: color,
+                weight: isNoTake ? 3 : 2,
+                opacity: 1,
+                color: color,
+                fillOpacity: isNoTake ? 0.5 : 0.35,
+                dashArray: isActive ? null : '8, 4',  // Dashed for inactive
+                lineCap: 'round',
+                lineJoin: 'round'
+            };
+        };
 
         const highlightStyle = {
-            weight: 4,
+            weight: 5,
             color: '#ffc107',
-            fillOpacity: 0.6
+            fillOpacity: 0.65,
+            dashArray: null
+        };
+
+        // Create pulsing effect for NoTake zones
+        const createPulseLayer = (geojsonData) => {
+            const noTakeFeatures = {
+                type: 'FeatureCollection',
+                features: geojsonData.features.filter(f => f.properties.ProtectionLevel === 'NoTake')
+            };
+
+            if (noTakeFeatures.features.length === 0) return null;
+
+            return L.geoJSON(noTakeFeatures, {
+                style: {
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    weight: 4,
+                    color: '#dc3545',
+                    opacity: 0.8,
+                    className: 'mpa-pulse-border'  // CSS animation class
+                },
+                interactive: false  // Don't interfere with main layer events
+            });
         };
 
         try {
@@ -201,6 +237,17 @@ window.leafletMap = {
 
         this.mpaLayers[mapId] = layer;
 
+        // Add pulsing border layer for NoTake zones
+        if (this.mpaPulseLayers[mapId]) {
+            map.removeLayer(this.mpaPulseLayers[mapId]);
+        }
+        const pulseLayer = createPulseLayer(geojsonData);
+        if (pulseLayer) {
+            pulseLayer.addTo(map);
+            this.mpaPulseLayers[mapId] = pulseLayer;
+            console.log('[leaflet-map.js] Added pulse layer for NoTake zones');
+        }
+
         // Fit map to show all MPAs
         if (layer.getBounds().isValid()) {
             map.fitBounds(layer.getBounds(), { padding: [50, 50] });
@@ -223,18 +270,73 @@ window.leafletMap = {
         }
     },
 
-    // Add fishing events layer
+    // Add fishing events layer with trajectory lines and enhanced markers
     addFishingEventsLayer: function (mapId, fishingEvents, dotNetHelper) {
         const map = this.maps[mapId];
         if (!map) return false;
 
-        // Remove existing fishing layer
+        // Remove existing layers
         if (this.fishingLayers[mapId]) {
             map.removeLayer(this.fishingLayers[mapId]);
         }
+        if (this.trajectoryLayers[mapId]) {
+            map.removeLayer(this.trajectoryLayers[mapId]);
+        }
 
         const markers = L.layerGroup();
+        const trajectories = L.layerGroup();
 
+        // Group events by vessel for trajectory lines
+        const vesselEvents = {};
+        fishingEvents.forEach(evt => {
+            const vesselKey = evt.vesselId || 'unknown';
+            if (!vesselEvents[vesselKey]) {
+                vesselEvents[vesselKey] = [];
+            }
+            vesselEvents[vesselKey].push(evt);
+        });
+
+        // Create trajectory lines for each vessel
+        Object.entries(vesselEvents).forEach(([vesselId, events]) => {
+            if (events.length > 1) {
+                // Sort by time
+                events.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+
+                // Create polyline coordinates
+                const coords = events.map(e => [e.latitude, e.longitude]);
+
+                // Gradient line segments based on time
+                for (let i = 0; i < coords.length - 1; i++) {
+                    const daysAgo = (Date.now() - new Date(events[i].startTime).getTime()) / (1000 * 60 * 60 * 24);
+                    let lineColor;
+                    if (daysAgo < 7) lineColor = 'rgba(220, 53, 69, 0.6)';
+                    else if (daysAgo < 14) lineColor = 'rgba(253, 126, 20, 0.5)';
+                    else if (daysAgo < 30) lineColor = 'rgba(255, 193, 7, 0.4)';
+                    else lineColor = 'rgba(108, 117, 125, 0.3)';
+
+                    const segment = L.polyline([coords[i], coords[i + 1]], {
+                        color: lineColor,
+                        weight: 2,
+                        opacity: 0.8,
+                        dashArray: '6, 4',
+                        className: 'fishing-trajectory'
+                    });
+
+                    segment.bindTooltip(`Vessel: ${events[i].vesselName || vesselId}`, {
+                        permanent: false,
+                        direction: 'center'
+                    });
+
+                    trajectories.addLayer(segment);
+                }
+            }
+        });
+
+        // Add trajectory layer first (under markers)
+        trajectories.addTo(map);
+        this.trajectoryLayers[mapId] = trajectories;
+
+        // Create markers for each event
         fishingEvents.forEach(evt => {
             const daysAgo = (Date.now() - new Date(evt.startTime).getTime()) / (1000 * 60 * 60 * 24);
             let color;
@@ -244,32 +346,57 @@ window.leafletMap = {
             else color = '#6c757d';
 
             const isViolation = evt.isInMpa === true;
-            const radius = isViolation ? 8 : 6;
+            const radius = isViolation ? 9 : 6;
             const borderColor = isViolation ? '#ff0000' : '#ffffff';
             const borderWeight = isViolation ? 3 : 2;
 
-            const marker = L.circleMarker([evt.latitude, evt.longitude], {
-                radius: radius,
-                fillColor: color,
-                color: borderColor,
-                weight: borderWeight,
-                opacity: 1,
-                fillOpacity: 0.8
-            });
+            // Use div icon for violation markers to enable CSS animation
+            let marker;
+            if (isViolation) {
+                const violationIcon = L.divIcon({
+                    className: 'fishing-violation-marker',
+                    html: `<div class="violation-pulse" style="background-color: ${color};"></div>`,
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                });
+                marker = L.marker([evt.latitude, evt.longitude], { icon: violationIcon });
+            } else {
+                marker = L.circleMarker([evt.latitude, evt.longitude], {
+                    radius: radius,
+                    fillColor: color,
+                    color: borderColor,
+                    weight: borderWeight,
+                    opacity: 1,
+                    fillOpacity: 0.85
+                });
+            }
 
+            // Enhanced popup with more info
             let popupContent = `
-                <strong><i class="bi bi-water"></i> Fishing Event</strong>
-                ${isViolation ? '<span class="badge bg-danger ms-2">MPA Violation</span>' : ''}
-                <hr style="margin: 4px 0;"/>
-                <small><strong>Vessel:</strong> ${evt.vesselName || evt.vesselId}</small><br/>
-                <small><strong>Date:</strong> ${new Date(evt.startTime).toLocaleDateString()}</small>
+                <div class="fishing-popup">
+                    <div class="popup-header">
+                        <strong>Fishing Event</strong>
+                        ${isViolation ? '<span class="badge bg-danger ms-2">MPA Violation</span>' : ''}
+                    </div>
+                    <hr style="margin: 6px 0;"/>
+                    <div class="popup-body">
+                        <div><strong>Vessel:</strong> ${evt.vesselName || evt.vesselId}</div>
+                        <div><strong>Date:</strong> ${new Date(evt.startTime).toLocaleDateString()}</div>
+                        <div><strong>Time:</strong> ${new Date(evt.startTime).toLocaleTimeString()}</div>
             `;
             if (evt.durationHours) {
-                popupContent += `<br/><small><strong>Duration:</strong> ${evt.durationHours.toFixed(1)} hours</small>`;
+                popupContent += `<div><strong>Duration:</strong> ${evt.durationHours.toFixed(1)} hours</div>`;
+            }
+            if (evt.distanceKm) {
+                popupContent += `<div><strong>Distance:</strong> ${evt.distanceKm.toFixed(1)} km</div>`;
+            }
+            if (evt.eventType) {
+                popupContent += `<div><strong>Type:</strong> ${evt.eventType}</div>`;
             }
             if (isViolation && evt.mpaName) {
-                popupContent += `<br/><small class="text-danger"><strong>Inside:</strong> ${evt.mpaName}</small>`;
+                popupContent += `<div class="text-danger"><strong>Inside MPA:</strong> ${evt.mpaName}</div>`;
             }
+            popupContent += '</div></div>';
 
             marker.bindPopup(popupContent);
 
@@ -285,10 +412,11 @@ window.leafletMap = {
         markers.addTo(map);
         this.fishingLayers[mapId] = markers;
 
+        console.log(`[leaflet-map.js] Added ${fishingEvents.length} fishing markers and ${Object.keys(vesselEvents).length} vessel trajectories`);
         return true;
     },
 
-    // Remove fishing events layer
+    // Remove fishing events layer and trajectories
     removeFishingEventsLayer: function (mapId) {
         const map = this.maps[mapId];
         if (!map) return false;
@@ -296,6 +424,11 @@ window.leafletMap = {
         if (this.fishingLayers[mapId]) {
             map.removeLayer(this.fishingLayers[mapId]);
             delete this.fishingLayers[mapId];
+        }
+
+        if (this.trajectoryLayers[mapId]) {
+            map.removeLayer(this.trajectoryLayers[mapId]);
+            delete this.trajectoryLayers[mapId];
         }
 
         return true;
@@ -521,13 +654,15 @@ window.leafletMap = {
         }
     },
 
-    // Dispose map
+    // Dispose map and all layers
     dispose: function (mapId) {
         if (this.maps[mapId]) {
             this.maps[mapId].remove();
             delete this.maps[mapId];
             delete this.mpaLayers[mapId];
+            delete this.mpaPulseLayers[mapId];
             delete this.fishingLayers[mapId];
+            delete this.trajectoryLayers[mapId];
             delete this.tileLayers[mapId];
             delete this.legendControls[mapId];
             delete this.hoverInfoControls[mapId];
