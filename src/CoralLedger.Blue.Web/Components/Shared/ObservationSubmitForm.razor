@@ -1,0 +1,471 @@
+@rendermode InteractiveServer
+@using CoralLedger.Blue.Domain.Enums
+@using System.Text.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<div class="observation-form-container">
+    <div class="form-header">
+        <h2><span class="material-icons">add_location</span> Submit Observation</h2>
+        <p>Report marine observations to help protect Bahamian waters</p>
+    </div>
+
+    @if (_submitSuccess)
+    {
+        <div class="success-message">
+            <span class="material-icons">check_circle</span>
+            <div>
+                <h3>Observation Submitted!</h3>
+                <p>Thank you for your contribution. Your observation will be reviewed by our team.</p>
+            </div>
+            <button class="btn-primary" @onclick="ResetForm">Submit Another</button>
+        </div>
+    }
+    else
+    {
+        <form @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+            @* Step 1: Location *@
+            <div class="form-step @(_currentStep == 1 ? "active" : "")">
+                <div class="step-header">
+                    <span class="step-number">1</span>
+                    <h3>Location</h3>
+                </div>
+                <div class="step-content">
+                    <div class="location-picker">
+                        <div id="location-map" class="location-map"></div>
+                        <div class="location-controls">
+                            <button type="button" class="btn-outline" @onclick="UseCurrentLocationAsync">
+                                <span class="material-icons">my_location</span>
+                                Use My Location
+                            </button>
+                            @if (_latitude.HasValue && _longitude.HasValue)
+                            {
+                                <div class="selected-location">
+                                    <span class="material-icons">place</span>
+                                    <span>@_latitude.Value.ToString("F5"), @_longitude.Value.ToString("F5")</span>
+                                    @if (_mpaName != null)
+                                    {
+                                        <span class="mpa-indicator">
+                                            <span class="material-icons">shield</span>
+                                            @_mpaName
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    @if (_locationError != null)
+                    {
+                        <div class="field-error">@_locationError</div>
+                    }
+                </div>
+            </div>
+
+            @* Step 2: Details *@
+            <div class="form-step @(_currentStep == 2 ? "active" : "")">
+                <div class="step-header">
+                    <span class="step-number">2</span>
+                    <h3>Observation Details</h3>
+                </div>
+                <div class="step-content">
+                    <div class="form-group">
+                        <label for="type">Type of Observation *</label>
+                        <div class="type-selector">
+                            @foreach (var type in _observationTypes)
+                            {
+                                <button type="button"
+                                        class="type-option @(_selectedType == type.Value ? "selected" : "")"
+                                        @onclick="() => _selectedType = type.Value">
+                                    <span class="material-icons">@type.Icon</span>
+                                    <span>@type.Label</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="title">Title *</label>
+                        <input type="text" id="title" @bind="_title" placeholder="Brief description of what you observed" maxlength="100" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description" @bind="_description" rows="4" placeholder="Provide additional details about your observation..." maxlength="2000"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Severity</label>
+                        <div class="severity-selector">
+                            @for (int i = 1; i <= 5; i++)
+                            {
+                                var severity = i;
+                                <button type="button"
+                                        class="severity-option @(_severity == severity ? "selected" : "") severity-@severity"
+                                        @onclick="() => _severity = severity"
+                                        title="@GetSeverityLabel(severity)">
+                                    @severity
+                                </button>
+                            }
+                        </div>
+                        <small class="severity-label">@GetSeverityLabel(_severity)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="observationTime">When did you observe this?</label>
+                        <input type="datetime-local" id="observationTime" @bind="_observationTime" max="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" />
+                    </div>
+                </div>
+            </div>
+
+            @* Step 3: Photos *@
+            <div class="form-step @(_currentStep == 3 ? "active" : "")">
+                <div class="step-header">
+                    <span class="step-number">3</span>
+                    <h3>Photos (Optional)</h3>
+                </div>
+                <div class="step-content">
+                    <div class="photo-upload-area">
+                        <InputFile OnChange="HandlePhotoSelectAsync" accept="image/jpeg,image/png,image/webp,image/heic" multiple class="photo-input" id="photo-input" />
+                        <label for="photo-input" class="photo-dropzone">
+                            <span class="material-icons">add_photo_alternate</span>
+                            <span>Click or drag photos here</span>
+                            <small>JPEG, PNG, WebP, or HEIC (max 10MB each)</small>
+                        </label>
+                    </div>
+
+                    @if (_photos.Any())
+                    {
+                        <div class="photo-previews">
+                            @foreach (var photo in _photos)
+                            {
+                                <div class="photo-preview">
+                                    <img src="@photo.PreviewUrl" alt="Preview" />
+                                    <button type="button" class="remove-photo" @onclick="() => RemovePhoto(photo)">
+                                        <span class="material-icons">close</span>
+                                    </button>
+                                    @if (photo.HasGps)
+                                    {
+                                        <span class="photo-gps-badge" title="GPS data found">
+                                            <span class="material-icons">gps_fixed</span>
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* Step 4: Contact (Optional) *@
+            <div class="form-step @(_currentStep == 4 ? "active" : "")">
+                <div class="step-header">
+                    <span class="step-number">4</span>
+                    <h3>Your Information (Optional)</h3>
+                </div>
+                <div class="step-content">
+                    <p class="privacy-note">
+                        <span class="material-icons">info</span>
+                        Your contact information helps us follow up if we need more details.
+                    </p>
+
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" id="name" @bind="_citizenName" placeholder="Your name" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" @bind="_citizenEmail" placeholder="your.email@example.com" />
+                    </div>
+                </div>
+            </div>
+
+            @* Navigation & Submit *@
+            <div class="form-navigation">
+                @if (_currentStep > 1)
+                {
+                    <button type="button" class="btn-outline" @onclick="PreviousStep">
+                        <span class="material-icons">arrow_back</span>
+                        Back
+                    </button>
+                }
+                else
+                {
+                    <div></div>
+                }
+
+                @if (_currentStep < 4)
+                {
+                    <button type="button" class="btn-primary" @onclick="NextStep" disabled="@(!CanProceed())">
+                        Next
+                        <span class="material-icons">arrow_forward</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="submit" class="btn-primary" disabled="@(_isSubmitting || !CanSubmit())">
+                        @if (_isSubmitting)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        else
+                        {
+                            <span class="material-icons">send</span>
+                        }
+                        Submit Observation
+                    </button>
+                }
+            </div>
+
+            @if (_submitError != null)
+            {
+                <div class="form-error">
+                    <span class="material-icons">error</span>
+                    @_submitError
+                </div>
+            }
+        </form>
+    }
+</div>
+
+@code {
+    [Parameter] public EventCallback<bool> OnSubmitted { get; set; }
+
+    private int _currentStep = 1;
+    private double? _latitude;
+    private double? _longitude;
+    private string? _mpaName;
+    private string? _locationError;
+    private ObservationType _selectedType = ObservationType.CoralBleaching;
+    private string _title = "";
+    private string _description = "";
+    private int _severity = 3;
+    private DateTime _observationTime = DateTime.Now;
+    private List<PhotoPreview> _photos = new();
+    private string _citizenName = "";
+    private string _citizenEmail = "";
+    private bool _isSubmitting;
+    private string? _submitError;
+    private bool _submitSuccess;
+    private bool _mapInitialized;
+
+    private readonly List<ObservationTypeOption> _observationTypes = new()
+    {
+        new(ObservationType.CoralBleaching, "Coral Bleaching", "thermostat"),
+        new(ObservationType.ReefHealth, "Reef Health", "water"),
+        new(ObservationType.FishSighting, "Fish Sighting", "set_meal"),
+        new(ObservationType.MarineDebris, "Marine Debris", "delete"),
+        new(ObservationType.IllegalFishing, "Illegal Fishing", "warning"),
+        new(ObservationType.BoatAnchorDamage, "Anchor Damage", "anchor"),
+        new(ObservationType.WildlifeSighting, "Wildlife", "pets"),
+        new(ObservationType.WaterQuality, "Water Quality", "opacity"),
+        new(ObservationType.Other, "Other", "help")
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_mapInitialized)
+        {
+            await InitializeLocationMapAsync();
+            _mapInitialized = true;
+        }
+    }
+
+    private async Task InitializeLocationMapAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("observationMap.initialize", "location-map", DotNetObjectReference.Create(this));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Map init error: {ex.Message}");
+        }
+    }
+
+    [JSInvokable]
+    public void OnLocationSelected(double lat, double lng, string? mpaName)
+    {
+        _latitude = lat;
+        _longitude = lng;
+        _mpaName = mpaName;
+        _locationError = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task UseCurrentLocationAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("observationMap.useCurrentLocation");
+        }
+        catch
+        {
+            _locationError = "Could not get your location. Please select on the map.";
+        }
+    }
+
+    private void NextStep()
+    {
+        if (CanProceed())
+        {
+            _currentStep++;
+        }
+    }
+
+    private void PreviousStep()
+    {
+        if (_currentStep > 1)
+        {
+            _currentStep--;
+        }
+    }
+
+    private bool CanProceed() => _currentStep switch
+    {
+        1 => _latitude.HasValue && _longitude.HasValue,
+        2 => !string.IsNullOrWhiteSpace(_title) && _selectedType != default,
+        3 => true, // Photos optional
+        4 => true,
+        _ => false
+    };
+
+    private bool CanSubmit() => _latitude.HasValue && _longitude.HasValue && !string.IsNullOrWhiteSpace(_title);
+
+    private async Task HandlePhotoSelectAsync(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles(5))
+        {
+            if (file.Size > 10 * 1024 * 1024)
+            {
+                continue; // Skip files over 10MB
+            }
+
+            try
+            {
+                var buffer = new byte[file.Size];
+                await file.OpenReadStream(10 * 1024 * 1024).ReadAsync(buffer);
+                var base64 = Convert.ToBase64String(buffer);
+                var previewUrl = $"data:{file.ContentType};base64,{base64}";
+
+                _photos.Add(new PhotoPreview
+                {
+                    FileName = file.Name,
+                    ContentType = file.ContentType,
+                    Data = buffer,
+                    PreviewUrl = previewUrl,
+                    HasGps = false // Would need EXIF parsing
+                });
+            }
+            catch { }
+        }
+    }
+
+    private void RemovePhoto(PhotoPreview photo)
+    {
+        _photos.Remove(photo);
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!CanSubmit()) return;
+
+        _isSubmitting = true;
+        _submitError = null;
+        StateHasChanged();
+
+        try
+        {
+            var request = new
+            {
+                Latitude = _latitude!.Value,
+                Longitude = _longitude!.Value,
+                ObservationTime = _observationTime,
+                Title = _title,
+                Description = _description,
+                Type = _selectedType,
+                Severity = _severity,
+                CitizenName = string.IsNullOrWhiteSpace(_citizenName) ? null : _citizenName,
+                CitizenEmail = string.IsNullOrWhiteSpace(_citizenEmail) ? null : _citizenEmail
+            };
+
+            var response = await Http.PostAsJsonAsync("/api/observations", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ObservationResult>();
+
+                // Upload photos if any
+                if (_photos.Any() && result?.Id != null)
+                {
+                    foreach (var photo in _photos)
+                    {
+                        try
+                        {
+                            var content = new MultipartFormDataContent();
+                            content.Add(new ByteArrayContent(photo.Data), "file", photo.FileName);
+                            await Http.PostAsync($"/api/observations/{result.Id}/photos", content);
+                        }
+                        catch { }
+                    }
+                }
+
+                _submitSuccess = true;
+                await OnSubmitted.InvokeAsync(true);
+            }
+            else
+            {
+                _submitError = "Failed to submit observation. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _submitError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        _currentStep = 1;
+        _latitude = null;
+        _longitude = null;
+        _mpaName = null;
+        _selectedType = ObservationType.CoralBleaching;
+        _title = "";
+        _description = "";
+        _severity = 3;
+        _observationTime = DateTime.Now;
+        _photos.Clear();
+        _citizenName = "";
+        _citizenEmail = "";
+        _submitSuccess = false;
+        _submitError = null;
+    }
+
+    private string GetSeverityLabel(int severity) => severity switch
+    {
+        1 => "Minor - Barely noticeable",
+        2 => "Low - Slight concern",
+        3 => "Moderate - Notable issue",
+        4 => "High - Significant concern",
+        5 => "Critical - Urgent attention needed",
+        _ => "Unknown"
+    };
+
+    private record ObservationTypeOption(ObservationType Value, string Label, string Icon);
+    private record ObservationResult(Guid Id);
+
+    private class PhotoPreview
+    {
+        public string FileName { get; set; } = "";
+        public string ContentType { get; set; } = "";
+        public byte[] Data { get; set; } = Array.Empty<byte>();
+        public string PreviewUrl { get; set; } = "";
+        public bool HasGps { get; set; }
+    }
+}

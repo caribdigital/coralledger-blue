@@ -1,0 +1,381 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="timelapse-control @(_isExpanded ? "expanded" : "")">
+    <button class="timelapse-toggle" @onclick="ToggleExpand" aria-label="Toggle time-lapse controls">
+        <span class="material-icons">@(_isExpanded ? "expand_more" : "schedule")</span>
+        @if (!_isExpanded)
+        {
+            <span class="toggle-label">Time-Lapse</span>
+        }
+    </button>
+
+    @if (_isExpanded)
+    {
+        <div class="timelapse-panel">
+            <div class="timelapse-header">
+                <h4>Time-Lapse Visualization</h4>
+                <div class="layer-selector">
+                    <button class="layer-btn @(_activeLayer == "bleaching" ? "active" : "")"
+                            @onclick='() => SetLayer("bleaching")'>
+                        <span class="material-icons">thermostat</span>
+                        Bleaching
+                    </button>
+                    <button class="layer-btn @(_activeLayer == "fishing" ? "active" : "")"
+                            @onclick='() => SetLayer("fishing")'>
+                        <span class="material-icons">phishing</span>
+                        Fishing
+                    </button>
+                    <button class="layer-btn @(_activeLayer == "vessels" ? "active" : "")"
+                            @onclick='() => SetLayer("vessels")'>
+                        <span class="material-icons">sailing</span>
+                        Vessels
+                    </button>
+                </div>
+            </div>
+
+            <div class="timelapse-timeline">
+                <div class="date-display">
+                    <span class="current-date">@_currentDate.ToString("MMM d, yyyy")</span>
+                    @if (_isPlaying)
+                    {
+                        <span class="playing-indicator">
+                            <span class="material-icons">fiber_manual_record</span>
+                            Playing
+                        </span>
+                    }
+                </div>
+
+                <div class="timeline-slider">
+                    <input type="range"
+                           min="0"
+                           max="@(_totalDays - 1)"
+                           value="@_currentDayIndex"
+                           @oninput="OnSliderChange"
+                           @onchange="OnSliderChangeEnd"
+                           disabled="@_isLoading" />
+                    <div class="timeline-ticks">
+                        @for (int i = 0; i < Math.Min(_totalDays, 8); i++)
+                        {
+                            var tickDate = _startDate.AddDays(i * (_totalDays / 7));
+                            <span class="tick">@tickDate.ToString("M/d")</span>
+                        }
+                    </div>
+                </div>
+
+                <div class="date-range">
+                    <span>@_startDate.ToString("MMM d")</span>
+                    <span>@_endDate.ToString("MMM d, yyyy")</span>
+                </div>
+            </div>
+
+            <div class="timelapse-controls">
+                <div class="playback-controls">
+                    <button class="control-btn" @onclick="StepBackward" disabled="@(_isPlaying || _currentDayIndex == 0)" title="Previous day">
+                        <span class="material-icons">skip_previous</span>
+                    </button>
+                    <button class="control-btn play-btn" @onclick="TogglePlayback" disabled="@_isLoading" title="@(_isPlaying ? "Pause" : "Play")">
+                        <span class="material-icons">@(_isPlaying ? "pause" : "play_arrow")</span>
+                    </button>
+                    <button class="control-btn" @onclick="StepForward" disabled="@(_isPlaying || _currentDayIndex >= _totalDays - 1)" title="Next day">
+                        <span class="material-icons">skip_next</span>
+                    </button>
+                </div>
+
+                <div class="speed-control">
+                    <label>Speed:</label>
+                    <select @bind="_playbackSpeed" disabled="@_isPlaying">
+                        <option value="2000">0.5x</option>
+                        <option value="1000">1x</option>
+                        <option value="500">2x</option>
+                        <option value="250">4x</option>
+                    </select>
+                </div>
+
+                <div class="range-control">
+                    <label>Range:</label>
+                    <select @bind="_rangePreset" @bind:after="ApplyRangePreset">
+                        <option value="7">7 days</option>
+                        <option value="14">14 days</option>
+                        <option value="30">30 days</option>
+                        <option value="90">90 days</option>
+                    </select>
+                </div>
+            </div>
+
+            @if (_isLoading)
+            {
+                <div class="loading-overlay">
+                    <div class="spinner"></div>
+                    <span>Loading data...</span>
+                </div>
+            }
+
+            @if (_activeLayer == "bleaching" && _bleachingStats != null)
+            {
+                <div class="stats-display">
+                    <div class="stat">
+                        <span class="stat-label">Avg SST</span>
+                        <span class="stat-value">@_bleachingStats.AvgSst.ToString("F1")°C</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Max DHW</span>
+                        <span class="stat-value dhw-@GetDhwLevel(_bleachingStats.MaxDhw)">@_bleachingStats.MaxDhw.ToString("F1")</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Alert Areas</span>
+                        <span class="stat-value">@_bleachingStats.AlertCount</span>
+                    </div>
+                </div>
+            }
+
+            @if (_activeLayer == "fishing" && _fishingStats != null)
+            {
+                <div class="stats-display">
+                    <div class="stat">
+                        <span class="stat-label">Events</span>
+                        <span class="stat-value">@_fishingStats.EventCount</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">Vessels</span>
+                        <span class="stat-value">@_fishingStats.VesselCount</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">In MPAs</span>
+                        <span class="stat-value @(_fishingStats.MpaViolations > 0 ? "warning" : "")">@_fishingStats.MpaViolations</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string MapId { get; set; } = "main-map";
+    [Parameter] public EventCallback<DateTime> OnDateChanged { get; set; }
+
+    private bool _isExpanded;
+    private string _activeLayer = "bleaching";
+    private DateTime _startDate = DateTime.UtcNow.AddDays(-30);
+    private DateTime _endDate = DateTime.UtcNow;
+    private DateTime _currentDate = DateTime.UtcNow;
+    private int _currentDayIndex;
+    private int _totalDays = 30;
+    private int _rangePreset = 30;
+    private bool _isPlaying;
+    private bool _isLoading;
+    private int _playbackSpeed = 1000;
+    private System.Threading.Timer? _playbackTimer;
+    private BleachingStats? _bleachingStats;
+    private FishingStats? _fishingStats;
+
+    protected override void OnInitialized()
+    {
+        _endDate = DateTime.UtcNow.Date;
+        _startDate = _endDate.AddDays(-_rangePreset);
+        _totalDays = _rangePreset;
+        _currentDate = _endDate;
+        _currentDayIndex = _totalDays - 1;
+    }
+
+    private void ToggleExpand()
+    {
+        _isExpanded = !_isExpanded;
+        if (_isExpanded && !_isLoading)
+        {
+            _ = LoadDataForDateAsync(_currentDate);
+        }
+    }
+
+    private async Task SetLayer(string layer)
+    {
+        if (_activeLayer != layer)
+        {
+            _activeLayer = layer;
+            await LoadDataForDateAsync(_currentDate);
+        }
+    }
+
+    private async Task ApplyRangePreset()
+    {
+        _endDate = DateTime.UtcNow.Date;
+        _startDate = _endDate.AddDays(-_rangePreset);
+        _totalDays = _rangePreset;
+
+        // Adjust current position if outside new range
+        if (_currentDate < _startDate)
+        {
+            _currentDate = _startDate;
+            _currentDayIndex = 0;
+        }
+        else if (_currentDate > _endDate)
+        {
+            _currentDate = _endDate;
+            _currentDayIndex = _totalDays - 1;
+        }
+        else
+        {
+            _currentDayIndex = (int)(_currentDate - _startDate).TotalDays;
+        }
+
+        await LoadDataForDateAsync(_currentDate);
+    }
+
+    private async Task OnSliderChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var index))
+        {
+            _currentDayIndex = index;
+            _currentDate = _startDate.AddDays(index);
+        }
+    }
+
+    private async Task OnSliderChangeEnd(ChangeEventArgs e)
+    {
+        await LoadDataForDateAsync(_currentDate);
+        await OnDateChanged.InvokeAsync(_currentDate);
+    }
+
+    private async Task LoadDataForDateAsync(DateTime date)
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            if (_activeLayer == "bleaching")
+            {
+                _bleachingStats = await LoadBleachingDataAsync(date);
+                await JS.InvokeVoidAsync("mapTimeLapse.updateBleachingLayer", MapId, date.ToString("yyyy-MM-dd"), _bleachingStats);
+            }
+            else if (_activeLayer == "fishing")
+            {
+                _fishingStats = await LoadFishingDataAsync(date);
+                await JS.InvokeVoidAsync("mapTimeLapse.updateFishingLayer", MapId, date.ToString("yyyy-MM-dd"), _fishingStats);
+            }
+            else if (_activeLayer == "vessels")
+            {
+                await JS.InvokeVoidAsync("mapTimeLapse.updateVesselLayer", MapId, date.ToString("yyyy-MM-dd"));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading timelapse data: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<BleachingStats?> LoadBleachingDataAsync(DateTime date)
+    {
+        // Simulated stats - in production would call API
+        return new BleachingStats
+        {
+            AvgSst = 28.5 + (date.DayOfYear % 30) * 0.1,
+            MaxDhw = Math.Max(0, (date.Month - 3) * 2.5),
+            AlertCount = Math.Max(0, (date.Month - 5) * 3)
+        };
+    }
+
+    private async Task<FishingStats?> LoadFishingDataAsync(DateTime date)
+    {
+        // Simulated stats - in production would call API
+        var random = new Random(date.DayOfYear);
+        return new FishingStats
+        {
+            EventCount = random.Next(10, 50),
+            VesselCount = random.Next(5, 20),
+            MpaViolations = random.Next(0, 5)
+        };
+    }
+
+    private void TogglePlayback()
+    {
+        _isPlaying = !_isPlaying;
+
+        if (_isPlaying)
+        {
+            _playbackTimer = new System.Threading.Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (_currentDayIndex < _totalDays - 1)
+                    {
+                        _currentDayIndex++;
+                        _currentDate = _startDate.AddDays(_currentDayIndex);
+                        await LoadDataForDateAsync(_currentDate);
+                        await OnDateChanged.InvokeAsync(_currentDate);
+                        StateHasChanged();
+                    }
+                    else
+                    {
+                        // Loop back to start
+                        _currentDayIndex = 0;
+                        _currentDate = _startDate;
+                        await LoadDataForDateAsync(_currentDate);
+                        await OnDateChanged.InvokeAsync(_currentDate);
+                        StateHasChanged();
+                    }
+                });
+            }, null, 0, _playbackSpeed);
+        }
+        else
+        {
+            _playbackTimer?.Dispose();
+            _playbackTimer = null;
+        }
+    }
+
+    private async Task StepBackward()
+    {
+        if (_currentDayIndex > 0)
+        {
+            _currentDayIndex--;
+            _currentDate = _startDate.AddDays(_currentDayIndex);
+            await LoadDataForDateAsync(_currentDate);
+            await OnDateChanged.InvokeAsync(_currentDate);
+        }
+    }
+
+    private async Task StepForward()
+    {
+        if (_currentDayIndex < _totalDays - 1)
+        {
+            _currentDayIndex++;
+            _currentDate = _startDate.AddDays(_currentDayIndex);
+            await LoadDataForDateAsync(_currentDate);
+            await OnDateChanged.InvokeAsync(_currentDate);
+        }
+    }
+
+    private string GetDhwLevel(double dhw) => dhw switch
+    {
+        >= 8 => "critical",
+        >= 4 => "high",
+        >= 1 => "medium",
+        _ => "low"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        _playbackTimer?.Dispose();
+    }
+
+    private class BleachingStats
+    {
+        public double AvgSst { get; set; }
+        public double MaxDhw { get; set; }
+        public int AlertCount { get; set; }
+    }
+
+    private class FishingStats
+    {
+        public int EventCount { get; set; }
+        public int VesselCount { get; set; }
+        public int MpaViolations { get; set; }
+    }
+}

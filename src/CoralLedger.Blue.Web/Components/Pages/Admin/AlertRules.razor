@@ -1,0 +1,562 @@
+@page "/admin/alert-rules"
+@rendermode InteractiveServer
+@using CoralLedger.Blue.Domain.Enums
+@using System.Text.Json
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>Alert Rules - Admin</PageTitle>
+
+<div class="admin-page">
+    <header class="admin-header">
+        <div class="header-content">
+            <a href="/admin" class="back-link">
+                <span class="material-icons">arrow_back</span>
+                Admin
+            </a>
+            <h1>Alert Rules</h1>
+            <p class="text-muted">Configure automated alert triggers and notifications</p>
+        </div>
+        <button class="btn-primary" @onclick="ShowCreateDialog">
+            <span class="material-icons">add</span>
+            Create Rule
+        </button>
+    </header>
+
+    @if (_isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner-large"></div>
+            <p>Loading alert rules...</p>
+        </div>
+    }
+    else if (_error != null)
+    {
+        <div class="error-state">
+            <span class="material-icons">error</span>
+            <p>@_error</p>
+            <button class="btn-outline" @onclick="LoadRulesAsync">Retry</button>
+        </div>
+    }
+    else
+    {
+        <div class="rules-stats">
+            <div class="stat-card">
+                <span class="stat-value">@_rules.Count</span>
+                <span class="stat-label">Total Rules</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">@_rules.Count(r => r.IsActive)</span>
+                <span class="stat-label">Active</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">@_rules.Count(r => !r.IsActive)</span>
+                <span class="stat-label">Inactive</span>
+            </div>
+        </div>
+
+        <div class="rules-list">
+            @if (!_rules.Any())
+            {
+                <div class="empty-state">
+                    <span class="material-icons">rule</span>
+                    <h3>No Alert Rules</h3>
+                    <p>Create your first alert rule to start monitoring.</p>
+                    <button class="btn-primary" @onclick="ShowCreateDialog">Create Rule</button>
+                </div>
+            }
+            else
+            {
+                @foreach (var rule in _rules.OrderByDescending(r => r.IsActive).ThenBy(r => r.Name))
+                {
+                    <div class="rule-card @(rule.IsActive ? "active" : "inactive")">
+                        <div class="rule-header">
+                            <div class="rule-type-badge type-@rule.Type.ToString().ToLower()">
+                                <span class="material-icons">@GetTypeIcon(rule.Type)</span>
+                                @rule.Type
+                            </div>
+                            <div class="rule-actions">
+                                <button class="btn-icon" @onclick="() => EditRule(rule)" title="Edit">
+                                    <span class="material-icons">edit</span>
+                                </button>
+                                <button class="btn-icon" @onclick="() => ToggleRuleAsync(rule)" title="@(rule.IsActive ? "Deactivate" : "Activate")">
+                                    <span class="material-icons">@(rule.IsActive ? "pause" : "play_arrow")</span>
+                                </button>
+                                <button class="btn-icon danger" @onclick="() => ConfirmDeleteRule(rule)" title="Delete">
+                                    <span class="material-icons">delete</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="rule-body">
+                            <h3>@rule.Name</h3>
+                            @if (!string.IsNullOrEmpty(rule.Description))
+                            {
+                                <p class="rule-description">@rule.Description</p>
+                            }
+                            <div class="rule-meta">
+                                <span class="severity-badge severity-@rule.Severity.ToString().ToLower()">
+                                    @rule.Severity
+                                </span>
+                                @if (rule.MpaName != null)
+                                {
+                                    <span class="mpa-badge">
+                                        <span class="material-icons">place</span>
+                                        @rule.MpaName
+                                    </span>
+                                }
+                                <span class="cooldown-badge">
+                                    <span class="material-icons">schedule</span>
+                                    @FormatCooldown(rule.CooldownMinutes)
+                                </span>
+                            </div>
+                            <div class="notification-channels">
+                                @foreach (var channel in GetActiveChannels(rule.NotificationChannels))
+                                {
+                                    <span class="channel-badge">
+                                        <span class="material-icons">@GetChannelIcon(channel)</span>
+                                        @channel
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                        <div class="rule-footer">
+                            @if (rule.LastTriggeredAt.HasValue)
+                            {
+                                <span class="last-triggered">
+                                    Last triggered: @FormatTime(rule.LastTriggeredAt.Value)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="last-triggered">Never triggered</span>
+                            }
+                            <button class="btn-text" @onclick="() => EvaluateRuleAsync(rule)">
+                                <span class="material-icons">play_circle</span>
+                                Test Now
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@* Create/Edit Dialog *@
+@if (_showDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseDialog">
+        <div class="dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h2>@(_editingRule == null ? "Create Alert Rule" : "Edit Alert Rule")</h2>
+                <button class="btn-icon" @onclick="CloseDialog">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="dialog-body">
+                <div class="form-group">
+                    <label for="name">Rule Name *</label>
+                    <input type="text" id="name" @bind="_formData.Name" placeholder="e.g., High Bleaching Alert" />
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" @bind="_formData.Description" rows="2" placeholder="Optional description..."></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="type">Alert Type *</label>
+                        <select id="type" @bind="_formData.Type">
+                            @foreach (AlertType type in Enum.GetValues<AlertType>())
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="severity">Severity *</label>
+                        <select id="severity" @bind="_formData.Severity">
+                            @foreach (AlertSeverity severity in Enum.GetValues<AlertSeverity>())
+                            {
+                                <option value="@severity">@severity</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="cooldown">Cooldown Period</label>
+                    <select id="cooldown" @bind="_formData.CooldownMinutes">
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="120">2 hours</option>
+                        <option value="360">6 hours</option>
+                        <option value="720">12 hours</option>
+                        <option value="1440">24 hours</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Notification Channels</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-item">
+                            <input type="checkbox" @bind="_formData.DashboardChannel" />
+                            <span class="material-icons">dashboard</span>
+                            Dashboard
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" @bind="_formData.EmailChannel" />
+                            <span class="material-icons">email</span>
+                            Email
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" @bind="_formData.PushChannel" />
+                            <span class="material-icons">notifications</span>
+                            Push
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" @bind="_formData.RealTimeChannel" />
+                            <span class="material-icons">bolt</span>
+                            Real-time
+                        </label>
+                    </div>
+                </div>
+
+                @if (_formData.EmailChannel)
+                {
+                    <div class="form-group">
+                        <label for="emails">Notification Emails</label>
+                        <input type="text" id="emails" @bind="_formData.NotificationEmails" placeholder="email1@example.com, email2@example.com" />
+                        <small>Comma-separated email addresses</small>
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label class="checkbox-item standalone">
+                        <input type="checkbox" @bind="_formData.IsActive" />
+                        Rule is active
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_formError))
+                {
+                    <div class="form-error">
+                        <span class="material-icons">error</span>
+                        @_formError
+                    </div>
+                }
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-outline" @onclick="CloseDialog">Cancel</button>
+                <button class="btn-primary" @onclick="SaveRuleAsync" disabled="@_isSaving">
+                    @if (_isSaving)
+                    {
+                        <span class="spinner"></span>
+                    }
+                    @(_editingRule == null ? "Create Rule" : "Save Changes")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Delete Confirmation Dialog *@
+@if (_showDeleteConfirm)
+{
+    <div class="dialog-overlay" @onclick="() => _showDeleteConfirm = false">
+        <div class="dialog dialog-small" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <h2>Delete Rule?</h2>
+            </div>
+            <div class="dialog-body">
+                <p>Are you sure you want to delete "<strong>@_ruleToDelete?.Name</strong>"? This action cannot be undone.</p>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-outline" @onclick="() => _showDeleteConfirm = false">Cancel</button>
+                <button class="btn-danger" @onclick="DeleteRuleAsync">Delete</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AlertRuleDto> _rules = new();
+    private bool _isLoading = true;
+    private string? _error;
+    private bool _showDialog;
+    private bool _showDeleteConfirm;
+    private AlertRuleDto? _editingRule;
+    private AlertRuleDto? _ruleToDelete;
+    private bool _isSaving;
+    private string? _formError;
+    private AlertRuleFormData _formData = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRulesAsync();
+    }
+
+    private async Task LoadRulesAsync()
+    {
+        _isLoading = true;
+        _error = null;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.GetAsync("/api/alerts/rules");
+            if (response.IsSuccessStatusCode)
+            {
+                _rules = await response.Content.ReadFromJsonAsync<List<AlertRuleDto>>() ?? new();
+            }
+            else
+            {
+                _error = "Failed to load alert rules";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ShowCreateDialog()
+    {
+        _editingRule = null;
+        _formData = new AlertRuleFormData
+        {
+            Type = AlertType.Bleaching,
+            Severity = AlertSeverity.Medium,
+            CooldownMinutes = 60,
+            IsActive = true,
+            DashboardChannel = true,
+            RealTimeChannel = true
+        };
+        _formError = null;
+        _showDialog = true;
+    }
+
+    private void EditRule(AlertRuleDto rule)
+    {
+        _editingRule = rule;
+        _formData = new AlertRuleFormData
+        {
+            Name = rule.Name,
+            Description = rule.Description,
+            Type = rule.Type,
+            Severity = rule.Severity,
+            CooldownMinutes = rule.CooldownMinutes,
+            IsActive = rule.IsActive,
+            NotificationEmails = rule.NotificationEmails,
+            DashboardChannel = (rule.NotificationChannels & NotificationChannel.Dashboard) != 0,
+            EmailChannel = (rule.NotificationChannels & NotificationChannel.Email) != 0,
+            PushChannel = (rule.NotificationChannels & NotificationChannel.Push) != 0,
+            RealTimeChannel = (rule.NotificationChannels & NotificationChannel.RealTime) != 0
+        };
+        _formError = null;
+        _showDialog = true;
+    }
+
+    private void CloseDialog()
+    {
+        _showDialog = false;
+        _editingRule = null;
+        _formError = null;
+    }
+
+    private async Task SaveRuleAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formData.Name))
+        {
+            _formError = "Rule name is required";
+            return;
+        }
+
+        _isSaving = true;
+        _formError = null;
+        StateHasChanged();
+
+        try
+        {
+            var channels = NotificationChannel.Dashboard; // Reset
+            channels = 0;
+            if (_formData.DashboardChannel) channels |= NotificationChannel.Dashboard;
+            if (_formData.EmailChannel) channels |= NotificationChannel.Email;
+            if (_formData.PushChannel) channels |= NotificationChannel.Push;
+            if (_formData.RealTimeChannel) channels |= NotificationChannel.RealTime;
+
+            var request = new
+            {
+                Name = _formData.Name,
+                Description = _formData.Description,
+                Type = _formData.Type,
+                Severity = _formData.Severity,
+                IsActive = _formData.IsActive,
+                NotificationChannels = channels,
+                NotificationEmails = _formData.NotificationEmails,
+                CooldownMinutes = _formData.CooldownMinutes
+            };
+
+            HttpResponseMessage response;
+            if (_editingRule == null)
+            {
+                response = await Http.PostAsJsonAsync("/api/alerts/rules", request);
+            }
+            else
+            {
+                response = await Http.PutAsJsonAsync($"/api/alerts/rules/{_editingRule.Id}", request);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                CloseDialog();
+                await LoadRulesAsync();
+            }
+            else
+            {
+                _formError = "Failed to save rule";
+            }
+        }
+        catch (Exception ex)
+        {
+            _formError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task ToggleRuleAsync(AlertRuleDto rule)
+    {
+        try
+        {
+            var request = new { IsActive = !rule.IsActive };
+            var response = await Http.PutAsJsonAsync($"/api/alerts/rules/{rule.Id}", request);
+            if (response.IsSuccessStatusCode)
+            {
+                rule.IsActive = !rule.IsActive;
+                StateHasChanged();
+            }
+        }
+        catch { }
+    }
+
+    private void ConfirmDeleteRule(AlertRuleDto rule)
+    {
+        _ruleToDelete = rule;
+        _showDeleteConfirm = true;
+    }
+
+    private async Task DeleteRuleAsync()
+    {
+        if (_ruleToDelete == null) return;
+
+        try
+        {
+            var response = await Http.DeleteAsync($"/api/alerts/rules/{_ruleToDelete.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                _rules.Remove(_ruleToDelete);
+            }
+        }
+        catch { }
+        finally
+        {
+            _showDeleteConfirm = false;
+            _ruleToDelete = null;
+        }
+    }
+
+    private async Task EvaluateRuleAsync(AlertRuleDto rule)
+    {
+        try
+        {
+            await Http.PostAsync($"/api/alerts/rules/{rule.Id}/evaluate", null);
+        }
+        catch { }
+    }
+
+    private string GetTypeIcon(AlertType type) => type switch
+    {
+        AlertType.Bleaching => "thermostat",
+        AlertType.FishingActivity => "phishing",
+        AlertType.VesselInMPA => "sailing",
+        AlertType.VesselDarkEvent => "signal_cellular_off",
+        AlertType.CitizenObservation => "campaign",
+        AlertType.TemperatureAnomaly => "device_thermostat",
+        AlertType.DegreeHeatingWeek => "local_fire_department",
+        _ => "warning"
+    };
+
+    private string GetChannelIcon(string channel) => channel switch
+    {
+        "Dashboard" => "dashboard",
+        "Email" => "email",
+        "Push" => "notifications",
+        "RealTime" => "bolt",
+        _ => "notifications"
+    };
+
+    private IEnumerable<string> GetActiveChannels(NotificationChannel channels)
+    {
+        if ((channels & NotificationChannel.Dashboard) != 0) yield return "Dashboard";
+        if ((channels & NotificationChannel.Email) != 0) yield return "Email";
+        if ((channels & NotificationChannel.Push) != 0) yield return "Push";
+        if ((channels & NotificationChannel.RealTime) != 0) yield return "RealTime";
+    }
+
+    private string FormatCooldown(int minutes)
+    {
+        if (minutes < 60) return $"{minutes}m";
+        if (minutes == 60) return "1h";
+        if (minutes < 1440) return $"{minutes / 60}h";
+        if (minutes == 1440) return "24h";
+        return $"{minutes / 1440}d";
+    }
+
+    private string FormatTime(DateTime time)
+    {
+        var diff = DateTime.UtcNow - time;
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+
+    private class AlertRuleDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public AlertType Type { get; set; }
+        public AlertSeverity Severity { get; set; }
+        public bool IsActive { get; set; }
+        public NotificationChannel NotificationChannels { get; set; }
+        public string? NotificationEmails { get; set; }
+        public int CooldownMinutes { get; set; }
+        public DateTime? LastTriggeredAt { get; set; }
+        public string? MpaName { get; set; }
+    }
+
+    private class AlertRuleFormData
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public AlertType Type { get; set; }
+        public AlertSeverity Severity { get; set; }
+        public bool IsActive { get; set; }
+        public int CooldownMinutes { get; set; }
+        public string? NotificationEmails { get; set; }
+        public bool DashboardChannel { get; set; }
+        public bool EmailChannel { get; set; }
+        public bool PushChannel { get; set; }
+        public bool RealTimeChannel { get; set; }
+    }
+}
